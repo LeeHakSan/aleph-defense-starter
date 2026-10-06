@@ -1,7 +1,7 @@
 {
   "step": 2,
   "repoUrl": "https://github.com/LeeHakSan/aleph-defense-starter",
-  "publicAppUrl": "https://choi-bujang-secret-vault-leehaksans-projects.vercel.app",
+  "publicAppUrl": "https://choi-bujang-secret-vault-nine-bay.vercel.app",
   "sampleMarker": "SAMPLE_NOTE_1",
   "judgeIssuer": "https://aleph-judge-production.up.railway.app/defense/judge",
   "identityProvider": null,
