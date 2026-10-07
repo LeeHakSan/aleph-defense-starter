@@ -18,6 +18,20 @@
 
 로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. 저장소의 `src/attack-check.mjs`는 실제 배포가 된 뒤 `/data.json`을 비로그인으로 요청해 공개 가상 메모의 확인 표시를 읽습니다.
 
+## 현재 작동하는 기능 (3단계)
+
+- `/`: 이메일·비밀번호 로그인과 로그아웃(Supabase Auth). 로그인하면 본인 계정으로 가상 메모를 추가·수정·삭제하는 화면이 보입니다.
+- `GET·POST /api/notes`, `GET·PUT·DELETE /api/notes/:id`: 서버가 요청의 로그인 토큰을 `src/verify-login.mjs`로 확인합니다. 토큰이 없거나 틀리면 자료 없이 401입니다. 메모를 추가할 때 서버가 확인한 사용자 ID를 `owner_id`로 저장하고, 요청에 실려 온 사용자 ID·역할은 읽지 않습니다. 목록은 로그인한 사용자 본인의 메모만 돌려줍니다.
+- `/data.json`: 메모 없이 `{"notes":[]}`만 공개합니다.
+- 아직 막지 못한 것: 로그인한 사용자는 다른 사람 메모의 id로도 읽기·수정·삭제를 할 수 있습니다. 소유자 검사는 4단계에서 붙입니다.
+
+### 다시 실행하는 방법
+
+1. Vercel 프로젝트의 환경 변수에 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`가 있어야 합니다. 값은 저장소에 넣지 않습니다.
+2. Supabase 대시보드의 Authentication → Users에서 시험 계정을 만들고, 배포 주소에서 로그인해 메모를 추가·수정·삭제합니다.
+3. 거부 확인: `curl -i https://VERCEL_APP_URL/api/notes` → 401과 `{"error":"LOGIN_REQUIRED"}`
+4. 제출 묶음: 변경을 모두 커밋한 뒤 `npm run bundle`을 실행합니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
+
 ## 가상 메모 노출 확인 절차
 
 ### 1. 현재 GitHub 저장소 파일 검색
@@ -40,29 +54,30 @@ curl -s https://VERCEL_APP_URL/data.json | grep -c "실습용 가상"
 # 결과: 0
 
 curl -s https://VERCEL_APP_URL/api/notes
-# 결과: {"notes":[{"title":"과제","content":"실습용 가상 과제 기록"}, ...]}
-# → 메모 내용이 /api/notes 응답에 포함됩니다 (아래 약점 참조)
+# 결과: {"error":"LOGIN_REQUIRED"}
+# → 로그인 토큰 없이는 메모가 응답에 포함되지 않습니다 (HTTP 401)
 ```
 
-`/data.json`에는 메모가 없어야 하지만, `/api/notes`는 인증 없이 메모를 반환합니다.  
+`/data.json`과 `/api/notes` 어느 쪽에서도 로그인 없이 읽을 수 있는 메모가 없어야 합니다.  
 Vercel 배포 이력에 이전 버전이 남아 있으면 옛 `/data.json`도 접근 가능할 수 있습니다.
 
 ### 3. 확인 결과 기록란
 
 | 확인 항목 | 결과 | 날짜 |
 |---|---|---|
-| `git grep "실습용 가상"` (현재 파일) | — | — |
-| `/data.json` 메모 포함 여부 | — | — |
-| `/api/notes` 인증 없이 반환 여부 | — | — |
+| `git grep "실습용 가상"` (현재 파일) | `supabase/notes.sql`(DB 이관 기록)과 이 README의 설명 문구만 검출 | 2026-10-07 |
+| `/data.json` 메모 포함 여부 | 없음 (HTTP 200, 메모·확인 표시 없음) | 2026-10-07 |
+| `/api/notes` 인증 없이 반환 여부 | 반환 안 됨 (HTTP 401) | 2026-10-07 |
 | 과거 커밋·배포 노출 해소 여부 | **미해소** (과거 기록 잔존) | — |
 
 ## 현재 알려진 약점
 
 | 약점 | 경로 | 상태 |
 |---|---|---|
-| `/api/notes` 인증 없음 | `api/notes.js` | 미수정 (3단계에서 차단 예정) |
+| 소유자 검사 없음 | `api/notes/[id].js` | 미수정 (4단계에서 차단 예정) |
+| `/api/notes` 인증 없음 | `api/notes.js`, `api/notes/[id].js` | 3단계에서 차단 (토큰이 없으면 401) |
 
-`/api/notes`는 로그인하지 않은 누구든 호출할 수 있습니다. 서버 키는 코드·응답·로그에 노출되지 않지만, 메모 내용 자체는 인증 없이 반환됩니다.
+로그인한 사용자는 다른 사용자의 메모 id를 알면 `GET·PUT·DELETE /api/notes/:id`로 그 메모를 읽고 고치고 지울 수 있습니다. 목록(`GET /api/notes`)은 로그인한 사용자 본인의 메모만 돌려줍니다.
 
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
