@@ -24,7 +24,7 @@
 - `POST /api/auth/login`·`/refresh`·`/logout`: 서버가 Supabase Auth를 공개 키(서버 환경 변수 `SUPABASE_PUBLISHABLE_KEY`)로 대신 부르고, 화면에는 로그인 토큰·갱신 토큰·만료 시각·사용자 ID·이메일만 돌려줍니다. 틀린 정보는 401(`LOGIN_FAILED`), 공개 키 설정 문제는 503(`AUTH_MISCONFIGURED`)입니다. 화면은 토큰이 만료되면 알아서 갱신하고, 갱신이 안 되면 로그아웃 상태로 돌아갑니다.
 - `GET·POST /api/notes`, `GET·PUT·DELETE /api/notes/:id`: 서버가 요청의 로그인 토큰을 `src/verify-login.mjs`로 확인합니다. 토큰이 없거나 틀리면 자료 없이 401입니다.
 - 소유자 검사: 서버가 확인한 사용자 ID와 DB의 `owner_id`를 비교해, 다른 사용자(또는 주인 없는) 메모의 조회·수정·삭제는 403으로 거부합니다. 없는 id는 404입니다. 목록은 본인 메모만 돌려주고, 추가할 때는 확인된 ID를 `owner_id`로 저장합니다. 요청에 실려 온 `owner_id`·사용자 ID·역할은 믿지 않으며, 소유자를 바꾸려는 수정은 403입니다.
-- `/data.json`: 메모 없이 `{"notes":[]}`만 공개합니다. `/aleph.json`: 빌드가 단계·커밋·주소와 허용 경로(`allowedRoutes` 8개)를 기록합니다.
+- `/data.json`: 메모 없이 `{"notes":[]}`만 공개합니다. `/aleph.json`: 빌드가 단계·커밋·주소와 허용 경로(`allowedRoutes` 8개), 원본 자료 주소(`originalApiUrl`)를 기록합니다. 심판은 `aleph.config.json`이 아니라 이 배포본의 값을 읽습니다.
 - DB 권한: `public.notes`는 RLS가 켜져 있고 `anon`·`authenticated`의 직접 권한을 모두 회수했습니다(`supabase/step4-rls.sql`, `supabase/step5-revoke-direct.sql`). 정책 4개(`auth.uid() = owner_id`)는 권한이 다시 열릴 때를 대비한 안전장치로 남겼습니다. 메모는 서버 함수가 서버 전용 키로만 읽고 쓰며, 원본 자료 주소는 `aleph.config.json`의 `originalApiUrl`에 적었습니다. 기존 샘플 메모 4건은 시험 계정 A 소유로 연결했고, 시험 계정 B 소유의 시험 메모가 1건 있습니다.
 
 ### 다시 실행하는 방법
@@ -79,6 +79,7 @@ Vercel 배포 이력에 이전 버전이 남아 있으면 옛 `/data.json`도 �
 | 5단계 권한 회수 | `anon`·`authenticated`는 `public.notes` 권한 없음, `service_role`만 보유 (`role_table_grants`·`has_table_privilege`로 확인) | 2026-10-07 |
 | 첫 화면 코드의 키 모양 문자열 | 0개 (HTTP 200), Supabase 주소·외부 라이브러리 없음 | 2026-10-07 |
 | `/aleph.json`의 허용 경로 | 8개 (HTTP 200) | 2026-10-07 |
+| `/aleph.json`의 원본 자료 주소 (`originalApiUrl`) | 5단계 심판이 배포본에서 찾지 못해(`S05_ORIGINAL_URL_MISSING`) 빌드가 이 값을 싣도록 고침. 단위 시험과 빌드 흉내로 확인했고, 배포본 확인은 제출 번들의 `aleph_json_original_api_url` 점검에 기록 | 2026-10-07 |
 | 새 로그인 경로 `/api/auth/*` (실제 계정 A·B로 로그인) | 로그인하면 화면에 본인 메모만 표시. 만료시킨 토큰은 화면이 알아서 갱신(갱신 토큰 교체, 새 토큰 약 1시간). 로그아웃하면 브라우저 세션이 지워지고 이전 갱신 토큰은 401 `SESSION_EXPIRED`. 빈 요청 400·틀린 정보 401·GET 405·엉터리 갱신 토큰 401 | 2026-10-07 |
 | A·B가 서로의 메모에 접근 (API, 5단계 재확인) | 조회·수정·삭제·가로채기·소유자 변경 모두 403, 각자 자기 메모의 추가·수정·삭제는 정상, 시험 뒤 DB 5건 그대로 | 2026-10-07 |
 | 로그인 토큰 + 공개 키로 원본 자료 주소 직접 접근 (A·B 모두, 5단계) | 조회·수정·삭제·추가 모두 `403`(`42501`, permission denied). 토큰 없이 공개 키만 쓰면 `401` | 2026-10-07 |

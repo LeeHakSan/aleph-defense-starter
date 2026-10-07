@@ -4,12 +4,27 @@ const SHA = /^[a-f0-9]{40}$/iu;
 const HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.vercel\.app$/iu;
 const ROUTE = /^(GET|POST|PUT|PATCH|DELETE) \/[A-Za-z0-9/_:.-]{0,200}$/u;
 
+// 쿼리·조각·계정 정보가 없는 https 경로만 공개한다. 비밀값이 섞일 길을 막기 위해서다.
+function validOriginalApiUrl(value) {
+  if (typeof value !== 'string' || value.length > 300 || /[?#\s]/u.test(value)) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password && url.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}
+
 export function deploymentIdentity(env, config) {
   const owner = env.VERCEL_GIT_REPO_OWNER;
   const repo = env.VERCEL_GIT_REPO_SLUG;
   const commit = env.VERCEL_GIT_COMMIT_SHA;
   const host = env.VERCEL_URL;
   const routes = config?.allowedRoutes ?? [];
+  const original = config?.originalApiUrl ?? null;
+  if (original !== null && !validOriginalApiUrl(original)) {
+    throw new Error('aleph.config.json의 originalApiUrl은 쿼리 없는 https 경로여야 합니다.');
+  }
   if (!Array.isArray(routes) || routes.length > 50
       || routes.some((route) => typeof route !== 'string' || !ROUTE.test(route))
       || env.VERCEL_GIT_PROVIDER !== 'github' || !OWNER.test(owner || '')
@@ -32,5 +47,6 @@ export function deploymentIdentity(env, config) {
     judgeIssuer: config.judgeIssuer,
     sampleMarker: config.sampleMarker,
     ...(routes.length ? { allowedRoutes: [...routes] } : {}),
+    ...(original ? { originalApiUrl: original } : {}),
   };
 }

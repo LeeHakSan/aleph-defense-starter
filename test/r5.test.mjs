@@ -40,6 +40,17 @@ test('build identity lists the allowed routes from the config', () => {
   assert.throws(() => deploymentIdentity(env, { ...config, allowedRoutes: 'GET /api/notes' }));
 });
 
+test('build identity publishes the original api url only as a plain https path', () => {
+  const url = 'https://project.supabase.co/rest/v1/notes';
+  assert.equal(deploymentIdentity(env, { ...config, originalApiUrl: url }).originalApiUrl, url);
+  assert.equal('originalApiUrl' in deploymentIdentity(env, config), false);
+  assert.equal('originalApiUrl' in deploymentIdentity(env, { ...config, originalApiUrl: null }), false);
+  for (const bad of ['http://project.supabase.co/rest/v1/notes', `${url}?select=*`, `${url}?`, `${url}#x`,
+    'https://user:pw@project.supabase.co/rest/v1/notes', 'https://localhost/rest/v1/notes', 'not a url', '', 5]) {
+    assert.throws(() => deploymentIdentity(env, { ...config, originalApiUrl: bad }), undefined, String(bad));
+  }
+});
+
 test('first attack check reads public data.json without credentials', async () => {
   const originalFetch = globalThis.fetch;
   let requestUrl;

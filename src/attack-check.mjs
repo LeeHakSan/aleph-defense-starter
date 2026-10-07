@@ -106,6 +106,15 @@ export async function runAttackChecks(config) {
         : `/aleph.json에 허용 경로 ${routes.length}개 (HTTP ${aleph.status})`,
     },
     {
+      attackId: 'aleph_json_original_api_url',
+      expected: '/aleph.json에 https로 시작하는 originalApiUrl(쿼리 없는 원본 자료 경로)이 있어야 함',
+      observed: failedToSend(aleph)
+        ? `요청 실패(${aleph.status}) — 확인 못 함`
+        : typeof aleph.json?.originalApiUrl === 'string' && aleph.json.originalApiUrl.startsWith('https://')
+          ? `/aleph.json에 originalApiUrl 있음 (HTTP ${aleph.status})`
+          : `/aleph.json에 originalApiUrl 없음 (HTTP ${aleph.status})`,
+    },
+    {
       attackId: 'page_no_public_key',
       expected: '첫 화면 코드에 Supabase 공개 키가 없어야 함 (키는 서버 함수에만 둠)',
       observed: failedToSend(page)
