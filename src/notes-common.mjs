@@ -43,7 +43,7 @@ export async function authenticate(request, response) {
     fail(response, 401, 'LOGIN_REQUIRED');
     return null;
   }
-  return { userId: login.userId, db: database };
+  return { userId: login.userId.toLowerCase(), db: database };
 }
 
 export function parseId(value) {
