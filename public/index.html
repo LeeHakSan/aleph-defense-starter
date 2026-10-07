@@ -107,12 +107,8 @@
   </main>
 
   <script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-
-    const SUPABASE_URL = 'https://wzjcxokorpaemarrymzp.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6amN4b2tvcnBhZW1hcnJ5bXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNzcwOTcsImV4cCI6MjEwNjg1MzA5N30.gU-ccSFJsNnZCzv5IHKRMUlwbs5AZcHXrOl7YSpnh9M';
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // 브라우저는 서버 함수(/api/...)만 부른다. DB 주소나 키는 이 화면 코드에 없다.
+    const SESSION_KEY = 'aleph-session';
 
     const $ = (id) => document.getElementById(id);
     const loginSection  = $('login-section');
@@ -130,34 +126,95 @@
     const noteError     = $('note-error');
     const notesList     = $('notes');
 
+    let session = readSession();
     let currentUserId = null;
     let notes = [];
     let editingId = null;
+    let refreshing = null;
 
     class StaleSession extends Error {}
 
     const ERROR_TEXT = {
       INVALID_NOTE: '제목은 1~200자, 내용은 5000자 이하로 입력해 주세요.',
       NOT_FOUND: '메모를 찾을 수 없습니다. 이미 지워졌을 수 있습니다.',
+      FORBIDDEN: '이 메모에 접근할 수 없습니다.',
       LOGIN_REQUIRED: '서버가 로그인 정보를 확인하지 못했습니다. 로그아웃한 뒤 다시 로그인해 주세요.',
     };
 
-    // 요청마다 현재 로그인의 토큰을 실어 보낸다. 사용자 ID·역할은 보내지 않는다. 서버가 토큰에서 직접 확인한다.
+    function readSession() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SESSION_KEY));
+        return saved?.access_token && saved?.refresh_token && saved?.user?.id ? saved : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function saveSession(next) {
+      session = next;
+      try {
+        if (next) localStorage.setItem(SESSION_KEY, JSON.stringify(next));
+        else localStorage.removeItem(SESSION_KEY);
+      } catch { /* 저장하지 못해도 이 탭에서는 계속 쓴다 */ }
+    }
+
+    async function postJson(path, body, token) {
+      const response = await fetch(path, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body ?? {}),
+      });
+      return { ok: response.ok, status: response.status, data: await response.json().catch(() => null) };
+    }
+
+    // 갱신 토큰은 한 번만 쓸 수 있어서 갱신 요청은 한 번에 하나만 보낸다.
+    function refreshSession() {
+      refreshing ??= (async () => {
+        try {
+          const { ok, status, data } = await postJson('/api/auth/refresh', { refresh_token: session?.refresh_token });
+          if (ok) saveSession(data);
+          else if (status === 400 || status === 401) saveSession(null);
+        } catch { /* 네트워크 오류면 지금 세션을 그대로 둔다 */ }
+        finally { refreshing = null; }
+      })();
+      return refreshing;
+    }
+
+    async function accessToken() {
+      if (session && session.expires_at - Date.now() / 1000 < 60) await refreshSession();
+      return session?.access_token ?? null;
+    }
+
+    function expire() {
+      saveSession(null);
+      showUI(null);
+      errorMsg.textContent = '로그인이 만료되었습니다. 다시 로그인해 주세요.';
+      errorMsg.classList.remove('hidden');
+      throw new StaleSession();
+    }
+
+    // 요청마다 로그인 토큰만 실어 보낸다. 사용자 ID·역할은 보내지 않는다. 서버가 토큰에서 직접 확인한다.
     async function api(method, path, body) {
       const userId = currentUserId;
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('로그인이 필요합니다.');
-      const response = await fetch(path, {
+      const send = (token) => fetch(path, {
         method,
         cache: 'no-store',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
-        },
+        headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
         body: body ? JSON.stringify(body) : undefined,
       });
+      let token = await accessToken();
+      if (!token) expire();
+      let response = await send(token);
+      if (response.status === 401) {
+        await refreshSession();
+        token = session?.access_token;
+        if (!token) expire();
+        response = await send(token);
+      }
       const data = await response.json().catch(() => null);
       if (userId !== currentUserId) throw new StaleSession();
+      if (response.status === 401) expire();
       if (!response.ok) {
         throw new Error(ERROR_TEXT[data?.error] ?? `요청을 처리하지 못했습니다. (오류 ${response.status})`);
       }
@@ -269,7 +326,7 @@
         notes = await api('GET', '/api/notes');
         renderNotes();
       });
-      if (!ok && !notes.length) notesList.replaceChildren(plainItem('메모를 불러오지 못했습니다.'));
+      if (!ok && !notes.length && currentUserId) notesList.replaceChildren(plainItem('메모를 불러오지 못했습니다.'));
     }
 
     function saveNote(note, title, body) {
@@ -303,7 +360,7 @@
       }).then((ok) => { if (ok) noteTitle.focus(); });
     });
 
-    // 같은 사용자의 토큰 갱신·탭 복귀 알림에는 화면을 다시 그리지 않는다. 수정 중인 입력이 사라지기 때문이다.
+    // 같은 사용자의 토큰 갱신이나 다른 탭의 알림에는 화면을 다시 그리지 않는다. 수정 중인 입력이 사라지기 때문이다.
     function showUI(user) {
       const userId = user?.id ?? null;
       if (userId === currentUserId) return;
@@ -336,34 +393,43 @@
       }
       loginBtn.disabled    = true;
       loginBtn.textContent = '로그인 중…';
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      let result;
+      try {
+        result = await postJson('/api/auth/login', { email, password });
+      } catch {
+        result = { ok: false, status: 0, data: { message: '서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.' } };
+      }
       loginBtn.disabled    = false;
       loginBtn.textContent = '로그인';
-      if (error) {
-        errorMsg.textContent = error.message;
+      if (!result.ok) {
+        errorMsg.textContent = result.data?.message ?? `로그인하지 못했습니다. (오류 ${result.status})`;
         errorMsg.classList.remove('hidden');
         return;
       }
       passwordInput.value = '';
+      saveSession(result.data);
+      showUI(session.user);
     });
 
-    logoutBtn.addEventListener('click', async () => {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        noteError.textContent = '로그아웃하지 못했습니다. 잠시 뒤 다시 시도해 주세요.';
-        noteError.classList.remove('hidden');
-      }
+    logoutBtn.addEventListener('click', () => {
+      const token = session?.access_token;
+      saveSession(null);
+      showUI(null);
+      // 서버에서도 이 기기의 로그인을 끊는다. 실패해도 화면은 이미 로그아웃 상태다.
+      if (token) postJson('/api/auth/logout', {}, token).catch(() => {});
     });
 
     [emailInput, passwordInput].forEach((el) =>
       el.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginBtn.click(); })
     );
 
-    // 콜백 안에서 supabase 함수를 부르면 멈출 수 있어서, 화면 갱신은 콜백이 끝난 뒤로 미룬다.
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setTimeout(() => showUI(session?.user ?? null), 0);
+    // 다른 탭에서 로그인·로그아웃하면 이 탭도 따라간다.
+    window.addEventListener('storage', (event) => {
+      if (event.key !== SESSION_KEY) return;
+      session = readSession();
+      showUI(session?.user ?? null);
     });
-    const { data: { session } } = await supabase.auth.getSession();
+
     showUI(session?.user ?? null);
   </script>
 </body>

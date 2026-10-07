@@ -31,6 +31,15 @@ test('build identity uses Vercel Git and deployment metadata', () => {
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
 });
 
+test('build identity lists the allowed routes from the config', () => {
+  const routes = ['GET /api/notes', 'POST /api/notes', 'GET /api/notes/:id', 'POST /api/auth/login'];
+  assert.deepEqual(deploymentIdentity(env, { ...config, allowedRoutes: routes }).allowedRoutes, routes);
+  assert.equal('allowedRoutes' in deploymentIdentity(env, config), false);
+  assert.equal('allowedRoutes' in deploymentIdentity(env, { ...config, allowedRoutes: [] }), false);
+  assert.throws(() => deploymentIdentity(env, { ...config, allowedRoutes: ['not a route'] }));
+  assert.throws(() => deploymentIdentity(env, { ...config, allowedRoutes: 'GET /api/notes' }));
+});
+
 test('first attack check reads public data.json without credentials', async () => {
   const originalFetch = globalThis.fetch;
   let requestUrl;
