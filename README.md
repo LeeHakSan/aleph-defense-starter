@@ -24,14 +24,15 @@
 - `GET·POST /api/notes`, `GET·PUT·DELETE /api/notes/:id`: 서버가 요청의 로그인 토큰을 `src/verify-login.mjs`로 확인합니다. 토큰이 없거나 틀리면 자료 없이 401입니다.
 - 소유자 검사: 서버가 확인한 사용자 ID와 DB의 `owner_id`를 비교해, 다른 사용자(또는 주인 없는) 메모의 조회·수정·삭제는 403으로 거부합니다. 없는 id는 404입니다. 목록은 본인 메모만 돌려주고, 추가할 때는 확인된 ID를 `owner_id`로 저장합니다. 요청에 실려 온 `owner_id`·사용자 ID·역할은 믿지 않으며, 소유자를 바꾸려는 수정은 403입니다.
 - `/data.json`: 메모 없이 `{"notes":[]}`만 공개합니다.
-- 아직 안 한 것: DB 쪽 권한 줄이기(RLS 정책과 최소 GRANT)와 기존 샘플 메모 4건의 소유자 연결은 SQL을 검토한 뒤 적용합니다. 지금 DB는 RLS가 켜져 있고 정책이 없어 기본 거부 상태이며, API만 서버 전용 키로 접근합니다.
+- DB 권한: `public.notes`는 RLS가 켜져 있고 `anon`에는 권한이 없습니다. `authenticated`에는 SELECT·INSERT·UPDATE·DELETE만 주고, 네 정책 모두 `auth.uid() = owner_id`일 때만 허용합니다(`supabase/step4-rls.sql`). 기존 샘플 메모 4건은 시험 계정 A 소유로 연결했고, 시험 계정 B 소유의 시험 메모가 1건 있습니다. 우리 API는 서버 전용 키로 접근하며 소유자 비교는 API가 직접 합니다.
 
 ### 다시 실행하는 방법
 
 1. Vercel 프로젝트의 환경 변수에 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`가 있어야 합니다. 값은 저장소에 넣지 않습니다.
 2. Supabase 대시보드의 Authentication → Users에서 시험 계정 A·B를 만들고(Auto Confirm User 체크), 배포 주소에서 각각 로그인해 메모를 추가·수정·삭제합니다. A로 만든 메모는 B 화면에 보이지 않아야 합니다.
 3. 거부 확인: `curl -i https://VERCEL_APP_URL/api/notes` → 401과 `{"error":"LOGIN_REQUIRED"}`
-4. 제출 묶음: 변경을 모두 커밋한 뒤 `npm run bundle`을 실행합니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
+4. DB 규칙: `supabase/step4-rls.sql`을 Supabase SQL Editor에서 실행합니다. 샘플 메모의 소유자는 `owner_id`가 비어 있는 행을 시험 계정 A의 ID로 바꾸는 UPDATE로 연결했습니다. 적용 뒤 `anon` 키로 `/rest/v1/notes`를 직접 부르면 `permission denied`(HTTP 401)가 나와야 합니다.
+5. 제출 묶음: 변경을 모두 커밋한 뒤 `npm run bundle`을 실행합니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
 
 ## 가상 메모 노출 확인 절차
 
@@ -69,7 +70,10 @@ Vercel 배포 이력에 이전 버전이 남아 있으면 옛 `/data.json`도 �
 | `git grep "실습용 가상"` (현재 파일) | `supabase/notes.sql`(DB 이관 기록)과 이 README의 설명 문구만 검출 | 2026-10-07 |
 | `/data.json` 메모 포함 여부 | 없음 (HTTP 200, 메모·확인 표시 없음) | 2026-10-07 |
 | `/api/notes` 인증 없이 반환 여부 | 반환 안 됨 (HTTP 401) | 2026-10-07 |
-| 공개용 `anon` 키로 DB 데이터 주소 직접 읽기 | 메모 행 0건 (HTTP 200) | 2026-10-07 |
+| 공개용 `anon` 키로 DB 데이터 주소 직접 읽기 | 권한 없음 (HTTP 401, `42501`), 메모 행 0건 | 2026-10-07 |
+| B로 로그인한 화면에서 A의 메모가 보이는가 | 안 보임 (B의 메모 1건만 보임) | 2026-10-07 |
+| B가 A의 메모 id로 조회·수정·삭제·가로채기 (API) | 모두 403, A의 메모는 그대로 | 2026-10-07 |
+| 로그인 토큰으로 DB 직접 접근 (RLS) | 본인 행만 조회·수정·삭제, 남의 행은 0건, 남의 소유로 INSERT·UPDATE는 `42501` 오류 | 2026-10-07 |
 | 과거 커밋·배포 노출 해소 여부 | **미해소** (과거 기록 잔존) | — |
 
 ## 현재 알려진 약점
@@ -78,10 +82,10 @@ Vercel 배포 이력에 이전 버전이 남아 있으면 옛 `/data.json`도 �
 |---|---|---|
 | `/api/notes` 인증 없음 | `api/notes.js`, `api/notes/[id].js` | 3단계에서 차단 (토큰이 없으면 401) |
 | 소유자 검사 없음 | `api/notes/[id].js` | 4단계에서 차단 (다른 사용자·주인 없는 메모는 403) |
-| DB 권한이 넓음 (`anon`·`authenticated`에 테이블 권한 전체, RLS 정책 없음) | Supabase `public.notes` | 미수정 (RLS·최소 GRANT SQL을 검토한 뒤 적용 예정) |
-| 기존 샘플 메모 4건에 `owner_id` 없음 | Supabase `public.notes` | 미수정 (소유자 연결 SQL을 검토한 뒤 적용 예정) |
+| DB 권한이 넓음 (`anon`·`authenticated`에 테이블 권한 전체, RLS 정책 없음) | Supabase `public.notes` | 4단계에서 차단 (정책 4개, `anon` 권한 없음, `authenticated`는 네 가지만) |
+| 기존 샘플 메모 4건에 `owner_id` 없음 | Supabase `public.notes` | 4단계에서 해결 (시험 계정 A 소유로 연결) |
 
-API는 서버 전용 키로만 DB에 접근하고 그 앞에서 소유자를 직접 비교합니다. DB 쪽 규칙(RLS·GRANT)은 아직 이 보호를 거들지 않습니다.
+API는 서버 전용 키로 DB에 접근하고 그 앞에서 소유자를 직접 비교하며, DB의 RLS·GRANT가 같은 규칙으로 한 번 더 막습니다. 남은 것: Supabase Auth의 "유출 비밀번호 차단"이 꺼져 있습니다(보안 점검 경고 1건, 메모 테이블과는 무관).
 
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
