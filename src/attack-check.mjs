@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (config.step !== 3) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (config.step !== 4) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
     app = new URL(config.publicAppUrl);
@@ -32,6 +32,11 @@ export async function runAttackChecks(config) {
     { token: forgedToken(issuer, { iat: now - 7200, exp: now - 3600 }) });
   const otherService = await send(app, 'GET', '/api/notes',
     { token: forgedToken(issuer, { aud: 'other-service' }) });
+
+  const anonKey = await readAnonKey(app);
+  const anonRead = anonKey
+    ? await sendDirect(`${new URL(issuer).origin}/rest/v1/notes?select=id,title,content`, anonKey)
+    : null;
 
   const exposed = (Array.isArray(data.json?.notes) && data.json.notes.length > 0)
     || (typeof config.sampleMarker === 'string' && data.text.includes(config.sampleMarker));
@@ -83,6 +88,22 @@ export async function runAttackChecks(config) {
       observed: verdict(otherService),
     },
     {
+      attackId: 'data_api_anon_direct_read',
+      expected: '공개용 anon 키로 DB 데이터 주소를 직접 읽어도 메모 행이 한 건도 오지 않아야 함',
+      observed: !anonRead
+        ? '미실행 — 첫 화면에서 공개용 anon 키를 찾지 못함'
+        : failedToSend(anonRead)
+          ? `요청 실패(${anonRead.status}) — 확인 못 함`
+          : anonRead.rows > 0
+            ? `HTTP ${anonRead.status} — 메모 ${anonRead.rows}건이 직접 읽힘`
+            : `HTTP ${anonRead.status}, 메모 행 0건`,
+    },
+    {
+      attackId: 'api_notes_other_owner',
+      expected: '로그인한 B가 A의 메모를 조회·수정·삭제하면 403으로 거부되고 A의 메모는 그대로여야 함',
+      observed: '미실행 — 자동 점검에는 시험 계정 로그인 정보가 없어 보내지 않음',
+    },
+    {
       attackId: 'login_normal_flow',
       expected: '정상 A 로그인 뒤 본인 메모를 추가·수정·삭제할 수 있어야 함',
       observed: '미실행 — 자동 점검에는 로그인 정보가 없어 보내지 않음',
@@ -108,6 +129,32 @@ async function send(app, method, path, { token, body } = {}) {
     return { status: String(response.status), json, text };
   } catch (error) {
     return { status: error.name === 'TimeoutError' ? 'timeout' : 'network_error', json: null, text: '' };
+  }
+}
+
+// 공개용 anon 키는 배포된 첫 화면에서 읽는다. 점검 코드에는 키 값을 넣지 않는다.
+async function readAnonKey(app) {
+  const page = await send(app, 'GET', '/');
+  const token = page.text.match(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/)?.[0];
+  try {
+    return JSON.parse(Buffer.from(token.split('.')[1], 'base64url')).role === 'anon' ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+// 메모 내용은 기록하지 않고 행 수만 센다.
+async function sendDirect(url, anonKey) {
+  try {
+    const response = await fetch(url, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(10000),
+      headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` },
+    });
+    const json = await response.json().catch(() => null);
+    return { status: String(response.status), rows: Array.isArray(json) ? json.length : 0 };
+  } catch (error) {
+    return { status: error.name === 'TimeoutError' ? 'timeout' : 'network_error', rows: 0 };
   }
 }
 
