@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (config.step !== 4) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (config.step !== 5) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
     app = new URL(config.publicAppUrl);
@@ -33,10 +33,21 @@ export async function runAttackChecks(config) {
   const otherService = await send(app, 'GET', '/api/notes',
     { token: forgedToken(issuer, { aud: 'other-service' }) });
 
-  const anonKey = await readAnonKey(app);
-  const anonRead = anonKey
-    ? await sendDirect(`${new URL(issuer).origin}/rest/v1/notes?select=id,title,content`, anonKey)
+  const aleph = await send(app, 'GET', '/aleph.json');
+  const page = await send(app, 'GET', '/');
+
+  // 화면에는 공개 키가 없으므로 직접 읽기 점검의 공개 키는 실행하는 사람이 환경 변수로 준다. 값은 어디에도 기록하지 않는다.
+  const publicKey = usablePublicKey(process.env.ALEPH_PUBLIC_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY);
+  const originalUrl = typeof config.originalApiUrl === 'string' ? config.originalApiUrl : null;
+  const anonRead = publicKey && originalUrl
+    ? await sendDirect(`${originalUrl}?select=id,title,content`, publicKey)
     : null;
+
+  const routes = Array.isArray(aleph.json?.allowedRoutes) ? aleph.json.allowedRoutes : [];
+  const keyLike = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|sb_(?:publishable|secret)_[A-Za-z0-9_-]{8,}/gu;
+  const serverSecret = /sb_secret_|service_role|SUPABASE_SECRET_KEY/u;
+  const leaked = [['/', page], ['/data.json', data]].filter(([, file]) => serverSecret.test(file.text)
+    || (typeof config.sampleMarker === 'string' && file.text.includes(config.sampleMarker)));
 
   const exposed = (Array.isArray(data.json?.notes) && data.json.notes.length > 0)
     || (typeof config.sampleMarker === 'string' && data.text.includes(config.sampleMarker));
@@ -88,10 +99,33 @@ export async function runAttackChecks(config) {
       observed: verdict(otherService),
     },
     {
+      attackId: 'aleph_json_allowed_routes',
+      expected: '/aleph.json의 allowedRoutes에 허용 경로가 하나 이상 있어야 함',
+      observed: failedToSend(aleph)
+        ? `요청 실패(${aleph.status}) — 확인 못 함`
+        : `/aleph.json에 허용 경로 ${routes.length}개 (HTTP ${aleph.status})`,
+    },
+    {
+      attackId: 'page_no_public_key',
+      expected: '첫 화면 코드에 Supabase 공개 키가 없어야 함 (키는 서버 함수에만 둠)',
+      observed: failedToSend(page)
+        ? `요청 실패(${page.status}) — 확인 못 함`
+        : `첫 화면 코드에 키 모양 문자열 ${(page.text.match(keyLike) ?? []).length}개 (HTTP ${page.status})`,
+    },
+    {
+      attackId: 'public_files_no_server_key_or_seed',
+      expected: '공개 정적 파일(첫 화면, /data.json)에 서버 전용 키 이름·값과 시드 표식이 없어야 함',
+      observed: failedToSend(page) || failedToSend(data)
+        ? '요청 실패 — 확인 못 함'
+        : leaked.length
+          ? `${leaked.map(([path]) => path).join(', ')}에서 서버 전용 키 또는 시드 표식이 검출됨`
+          : '첫 화면과 /data.json에서 검출 0건',
+    },
+    {
       attackId: 'data_api_anon_direct_read',
-      expected: '공개용 anon 키로 DB 데이터 주소를 직접 읽어도 메모 행이 한 건도 오지 않아야 함',
+      expected: '공개 키로 원본 자료 주소(originalApiUrl)를 직접 읽어도 메모 행이 한 건도 오지 않아야 함',
       observed: !anonRead
-        ? '미실행 — 첫 화면에서 공개용 anon 키를 찾지 못함'
+        ? '미실행 — 점검에 쓸 공개 키(환경 변수 ALEPH_PUBLIC_KEY)가 없음'
         : failedToSend(anonRead)
           ? `요청 실패(${anonRead.status}) — 확인 못 함`
           : anonRead.rows > 0
@@ -132,12 +166,12 @@ async function send(app, method, path, { token, body } = {}) {
   }
 }
 
-// 공개용 anon 키는 배포된 첫 화면에서 읽는다. 점검 코드에는 키 값을 넣지 않는다.
-async function readAnonKey(app) {
-  const page = await send(app, 'GET', '/');
-  const token = page.text.match(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/)?.[0];
+// 공개용 키(role이 anon인 JWT 또는 sb_publishable_)만 쓴다. 서버 전용 키가 잘못 들어오면 쓰지 않는다.
+function usablePublicKey(value) {
+  if (typeof value !== 'string') return null;
+  if (/^sb_publishable_[A-Za-z0-9_-]+$/u.test(value)) return value;
   try {
-    return JSON.parse(Buffer.from(token.split('.')[1], 'base64url')).role === 'anon' ? token : null;
+    return JSON.parse(Buffer.from(value.split('.')[1], 'base64url')).role === 'anon' ? value : null;
   } catch {
     return null;
   }

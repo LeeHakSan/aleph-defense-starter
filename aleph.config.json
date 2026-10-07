@@ -1,5 +1,5 @@
 {
-  "step": 4,
+  "step": 5,
   "repoUrl": "https://github.com/LeeHakSan/aleph-defense-starter",
   "publicAppUrl": "https://choi-bujang-secret-vault-nine-bay.vercel.app",
   "sampleMarker": "SAMPLE_NOTE_1",
@@ -19,6 +19,6 @@
     "POST /api/auth/refresh",
     "POST /api/auth/logout"
   ],
-  "originalApiUrl": null,
+  "originalApiUrl": "https://wzjcxokorpaemarrymzp.supabase.co/rest/v1/notes",
   "restoreRoute": null
 }
