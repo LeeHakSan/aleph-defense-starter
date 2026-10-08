@@ -1,0 +1,16 @@
+export const PATTERNS = Object.freeze([
+  Object.freeze({
+    name: 'failure_burst_same_source',
+    technique: 'T1110.001',
+    condition: '같은 출발 주소에서 짧은 시간에 로그인 실패가 20건 이상 이어짐 (data.count >= 20)',
+    minFailures: 20,
+    basis: 'MITRE ATT&CK T1110.001 Password Guessing: 비밀번호를 연속으로 추측해 넣으면 짧은 시간에 같은 주소의 로그인 실패가 몰린다.',
+  }),
+  Object.freeze({
+    name: 'password_spray_many_accounts',
+    technique: 'T1110.003',
+    condition: '같은 출발 주소가 서로 다른 계정 5개 이상에 같은 비밀번호로 로그인 실패 (data.accounts 또는 설명의 계정 수 >= 5)',
+    minAccounts: 5,
+    basis: 'MITRE ATT&CK T1110.003 Password Spraying: 계정 잠금을 피하려고 흔한 비밀번호 하나를 여러 계정에 차례로 넣는다.',
+  }),
+]);

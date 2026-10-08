@@ -1,13 +1,12 @@
-import { readFileSync } from 'node:fs';
-import { extractAlert } from './read-alerts.mjs';
+import { extractAlert } from './alert-fields.mjs';
+import { PATTERNS } from './patterns.mjs';
 
-const { patterns } = JSON.parse(readFileSync(new URL('./patterns.json', import.meta.url), 'utf8'));
-const burst = patterns.find((p) => p.name === 'failure_burst_same_source');
-const spray = patterns.find((p) => p.name === 'password_spray_many_accounts');
+const burst = PATTERNS.find((p) => p.name === 'failure_burst_same_source');
+const spray = PATTERNS.find((p) => p.name === 'password_spray_many_accounts');
 
 const BLOCK_AT = 0.85;
 const ALERT_AT = 0.5;
-const JEV_TIMEOUT_MS = 3000;
+const JEV_TIMEOUT_MS = 1000;
 
 const failuresOf = (alert) => {
   const n = Number.parseInt(alert?.data?.count ?? '0', 10);
@@ -25,17 +24,19 @@ const accountsOf = (alert) => {
 const actionFor = (confidence) => (confidence >= BLOCK_AT ? 'block' : confidence >= ALERT_AT ? 'alert' : 'record');
 const round = (value) => Math.round(value * 100) / 100;
 
-// Jev는 JEV_URL이 설정돼 있을 때만 부른다. 응답이 없거나 형식이 틀리면 null을 돌려준다.
+// Jev는 주소와 키가 모두 있고 1초 안에 답할 때만 쓴다. 아니면 null을 돌려준다.
 async function askJevOverHttp(summary) {
-  const url = process.env.JEV_URL;
-  if (!url) return null;
+  const env = globalThis.process?.env ?? {};
+  const url = env.JEV_URL;
+  const key = env.JEV_API_KEY;
+  if (!url || !key || typeof fetch !== 'function') return null;
   try {
     const response = await fetch(url, {
       method: 'POST',
       signal: AbortSignal.timeout(JEV_TIMEOUT_MS),
       headers: {
         'Content-Type': 'application/json',
-        ...(process.env.JEV_API_KEY ? { Authorization: `Bearer ${process.env.JEV_API_KEY}` } : {}),
+        Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({ task: 'brute-force-confidence', alert: summary }),
     });
