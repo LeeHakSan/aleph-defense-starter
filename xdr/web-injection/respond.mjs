@@ -1,3 +1,4 @@
+// decide 결과를 받아 차단 후보만 판정기 거부 규칙(xdr/deny-rules.json)으로 넣고, 알림을 xdr/alerts.log 에 쌓는다.
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,16 +8,17 @@ import { extractAlert, FIXTURE } from './read-alerts.mjs';
 const XDR = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const RULES_FILE = join(XDR, 'deny-rules.json');
 export const ALERTS_LOG = join(XDR, 'alerts.log');
+const RULE_PREFIX = 'xdr.web_injection.';
 const RULE_TTL_MS = 60 * 60 * 1000;
 
-// block 결정만 출발 주소별 거부 규칙으로 묶는다. 정상(record) 이벤트에 나온 주소는 절대 넣지 않는다.
+// block 결정만 출발 주소별로 묶는다. 정상(record) 이벤트에 나온 주소는 넣지 않는다.
 export function buildDenyRules(entries) {
   const normalSources = new Set(entries.filter((e) => e.decision.action === 'record').map((e) => e.row.srcip));
   const bySource = new Map();
   for (const { alert, row, decision } of entries) {
     if (decision.action !== 'block' || !row.srcip || normalSources.has(row.srcip)) continue;
     const expiresAt = new Date(Date.parse(alert.timestamp) + RULE_TTL_MS).toISOString();
-    const rule = bySource.get(row.srcip) ?? { id: `xdr.brute_force.${row.srcip}`, decision: 'deny', srcip: row.srcip, expiresAt, alertIds: [], reason: decision.reason };
+    const rule = bySource.get(row.srcip) ?? { id: `${RULE_PREFIX}${row.srcip}`, decision: 'deny', srcip: row.srcip, expiresAt, alertIds: [], reason: decision.reason };
     rule.alertIds.push(alert.id);
     if (expiresAt > rule.expiresAt) rule.expiresAt = expiresAt;
     bySource.set(row.srcip, rule);
@@ -24,11 +26,19 @@ export function buildDenyRules(entries) {
   return [...bySource.values()];
 }
 
-// 판정기 앞에 끼우는 추가 확인 단계. 만료되지 않은 거부 규칙에 걸리면 deny, 아니면 null(판정기 규칙으로 넘김).
+// 판정기 앞에 끼우는 추가 확인 단계. 만료 전 규칙에 걸리면 deny, 아니면 null(판정기 규칙으로 넘김).
 export function checkSource(rules, srcip, at) {
   const now = Date.parse(at);
   const hit = rules.find((rule) => rule.srcip === srcip && now < Date.parse(rule.expiresAt));
-  return hit ? { decision: 'deny', reasonCode: 'xdr_brute_force', ruleIds: [hit.id] } : null;
+  return hit ? { decision: 'deny', reasonCode: 'xdr_web_injection', ruleIds: [hit.id] } : null;
+}
+
+async function readJson(path, fallback) {
+  try {
+    return JSON.parse(await readFile(path, 'utf8'));
+  } catch {
+    return fallback;
+  }
 }
 
 async function loggedIds() {
@@ -39,39 +49,32 @@ async function loggedIds() {
   }
 }
 
-export async function applyBlocks() {
+export async function respond() {
   const { alerts } = JSON.parse(await readFile(FIXTURE, 'utf8'));
   const entries = [];
   for (const alert of alerts) entries.push({ alert, row: extractAlert(alert), decision: await decide(alert) });
 
   const rules = buildDenyRules(entries);
-  // 다른 모듈이 넣은 거부 규칙은 그대로 두고 이 모듈 규칙만 바꾼다.
-  let others = [];
-  try {
-    others = JSON.parse(await readFile(RULES_FILE, 'utf8')).rules.filter((rule) => !rule.id.startsWith('xdr.brute_force.'));
-  } catch {
-    others = [];
-  }
+  const others = (await readJson(RULES_FILE, { rules: [] })).rules.filter((rule) => !rule.id.startsWith(RULE_PREFIX));
   await writeFile(RULES_FILE, `${JSON.stringify({ schema: 'aleph.xdr.deny-rules.v1', rules: [...others, ...rules] }, null, 2)}\n`, 'utf8');
 
   const seen = await loggedIds();
   const lines = entries
     .filter(({ alert, decision }) => decision.action !== 'record' && !seen.has(alert.id))
-    .map(({ alert, row, decision }) => [row.timestamp, alert.id, decision.action, decision.confidence, row.srcip, row.srcuser, decision.reason].join('\t'));
+    .map(({ alert, row, decision }) => [row.timestamp, alert.id, decision.action, decision.confidence, row.srcip, row.srcuser ?? '-', decision.reason].join('\t'));
   if (lines.length) await appendFile(ALERTS_LOG, `${lines.join('\n')}\n`, 'utf8');
 
-  // 시험 경보를 다시 흘려 본다: 경보 시각에 그 주소가 막히는지 확인.
+  // 시험 경보를 다시 흘려 본다: 경보 시각에 그 주소가 이 모듈 규칙에 막히는지 확인.
   const replay = entries.map(({ alert, row, decision }) => ({ id: alert.id, action: decision.action, blocked: Boolean(checkSource(rules, row.srcip, alert.timestamp)) }));
   return { rules, appended: lines.length, replay };
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  const { rules, appended, replay } = await applyBlocks();
-  const blockedAttacks = replay.filter((r) => r.action === 'block' && r.blocked).length;
-  const blockedNormal = replay.filter((r) => r.action === 'record' && r.blocked).map((r) => r.id);
-  const blockedAmbiguous = replay.filter((r) => r.action === 'alert' && r.blocked).map((r) => r.id);
+  const { rules, appended, replay } = await respond();
+  const count = (action, blocked) => replay.filter((r) => r.action === action && r.blocked === blocked);
+  const blockedNormal = count('record', true).map((r) => r.id);
   console.log(`거부 규칙 ${rules.length}개 · 알림 새로 ${appended}줄`);
-  console.log(`다시 흘리기: 명확한 공격 ${blockedAttacks}/${replay.filter((r) => r.action === 'block').length}건 막힘 · 애매한 건 막힘 ${blockedAmbiguous.length}건 · 정상 막힘 ${blockedNormal.length}건${blockedNormal.length ? ` (${blockedNormal.join(', ')})` : ''}`);
+  console.log(`다시 흘리기: 명확한 공격 ${count('block', true).length}/${replay.filter((r) => r.action === 'block').length}건 막힘 · 애매한 건 막힘 ${count('alert', true).length}건 · 정상 막힘 ${blockedNormal.length}건${blockedNormal.length ? ` (${blockedNormal.join(', ')})` : ''}`);
   if (blockedNormal.length) process.exitCode = 1;
 }

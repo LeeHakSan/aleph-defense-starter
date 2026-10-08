@@ -17,3 +17,20 @@
 2026-09-27T13:02:16+09:00	bf-17	alert	0.5	192.0.2.52	user06	failure_burst_same_source 기준 미달 (실패 4건, 계정 0개) · Jev 응답 없음
 2026-09-27T14:05:27+09:00	bf-18	alert	0.5	198.51.100.52	user07	failure_burst_same_source 기준 미달 (실패 8건, 계정 0개) · Jev 응답 없음
 2026-09-27T15:12:09+09:00	bf-19	alert	0.5	203.0.113.52	user08	failure_burst_same_source 기준 미달 (실패 3건, 계정 0개) · Jev 응답 없음
+2026-09-27T09:13:01+09:00	wi-01	block	0.95	203.0.113.10	-	sql_injection_in_params · repeat_same_source (12번)
+2026-09-27T09:13:20+09:00	wi-02	block	0.95	203.0.113.10	-	script_injection_in_params · repeat_same_source (9번)
+2026-09-27T09:16:04+09:00	wi-03	block	0.95	198.51.100.15	-	path_traversal_repeat · repeat_same_source (8번)
+2026-09-27T10:02:11+09:00	wi-04	block	0.95	192.0.2.15	-	sql_injection_in_params · repeat_same_source (20번)
+2026-09-27T10:18:33+09:00	wi-05	block	0.95	203.0.113.18	-	sql_injection_in_params+script_injection_in_params · repeat_same_source (15번)
+2026-09-27T11:07:08+09:00	wi-06	block	0.95	198.51.100.18	-	command_injection_in_params · repeat_same_source (11번)
+2026-09-27T13:04:19+09:00	wi-07	block	0.95	192.0.2.21	-	path_traversal_repeat · repeat_same_source (14번)
+2026-09-27T14:26:02+09:00	wi-08	block	0.95	203.0.113.22	-	sql_injection_in_params · repeat_same_source (10번)
+2026-09-27T09:22:14+09:00	wi-09	alert	0.55	192.0.2.40	-	T1190 경보지만 주입 패턴 표기 없음 (반복 1번)
+2026-09-27T09:36:40+09:00	wi-10	alert	0.55	198.51.100.40	-	T1190 경보지만 주입 패턴 표기 없음 (반복 1번)
+2026-09-27T10:11:06+09:00	wi-11	alert	0.55	203.0.113.41	-	T1190 경보지만 주입 패턴 표기 없음 (반복 1번)
+2026-09-27T10:44:18+09:00	wi-12	alert	0.55	192.0.2.41	-	T1190 경보지만 주입 패턴 표기 없음 (반복 1번)
+2026-09-27T11:20:09+09:00	wi-13	alert	0.55	198.51.100.41	-	T1190 경보지만 주입 패턴 표기 없음 (반복 1번)
+2026-09-27T12:08:27+09:00	wi-14	alert	0.55	203.0.113.42	-	T1190 경보지만 주입 패턴 표기 없음 (반복 1번)
+2026-09-27T13:15:03+09:00	wi-15	alert	0.55	192.0.2.42	-	T1190 경보지만 주입 패턴 표기 없음 (반복 1번)
+2026-09-27T14:09:50+09:00	wi-16	alert	0.55	198.51.100.42	-	T1190 경보지만 주입 패턴 표기 없음 (반복 1번)
+2026-09-27T15:18:12+09:00	wi-17	alert	0.55	203.0.113.43	-	T1190 경보지만 주입 패턴 표기 없음 (반복 1번)

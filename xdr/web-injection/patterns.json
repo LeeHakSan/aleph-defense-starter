@@ -1,0 +1,38 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "web-injection",
+  "source": "MITRE ATT&CK T1190 (Exploit Public-Facing Application)",
+  "minRepeats": 5,
+  "patterns": [
+    {
+      "name": "sql_injection_in_params",
+      "technique": "T1190",
+      "condition": "요청 인자에 SQL 구문 표기(union select, ' or 1=1, -- 주석, 문서용 doc-sql 표식)가 들어 있음",
+      "basis": "MITRE ATT&CK T1190: 공개된 웹 앱의 입력 칸에 SQL 구문을 넣어 데이터베이스를 조작하는 것이 대표적 악용 방식이다 (MOVEit SQL 주입 사고)."
+    },
+    {
+      "name": "script_injection_in_params",
+      "technique": "T1190",
+      "condition": "요청 인자에 스크립트 태그·이벤트 처리기 표기(<script, javascript:, onerror=, 문서용 doc-script 표식)가 들어 있음",
+      "basis": "MITRE ATT&CK T1190: 공개된 웹 앱의 입력을 그대로 화면에 되돌리는 결함을 노려 스크립트를 심는다."
+    },
+    {
+      "name": "path_traversal_repeat",
+      "technique": "T1190",
+      "condition": "요청 인자에 경로 거슬러 올라가기(../ 또는 %2e%2e%2f, 문서용 doc-up-repeat 표식)가 들어 있음",
+      "basis": "MITRE ATT&CK T1190: 공개된 웹 앱의 파일 경로 처리 결함을 노려 ../ 를 반복해 허용 폴더 밖 파일을 읽는다."
+    },
+    {
+      "name": "command_injection_in_params",
+      "technique": "T1190",
+      "condition": "요청 인자에 명령 구분자 뒤 명령 표기(;cmd, |cmd, $( ), 문서용 doc-cmd 표식)가 들어 있음",
+      "basis": "MITRE ATT&CK T1190: 공개된 웹 앱이 입력을 시스템 명령에 이어 붙이는 결함을 노려 구분자 뒤에 명령을 덧붙인다."
+    },
+    {
+      "name": "repeat_same_source",
+      "technique": "T1190",
+      "condition": "위 주입 표기가 같은 출발 주소에서 minRepeats(5)번 이상 반복됨 (data.count >= 5)",
+      "basis": "MITRE ATT&CK T1190: 악용 시도는 자동 도구로 같은 주소에서 형태를 바꿔 가며 여러 번 보내는 경우가 많다."
+    }
+  ]
+}
