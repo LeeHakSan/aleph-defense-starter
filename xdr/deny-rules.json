@@ -1,0 +1,97 @@
+{
+  "schema": "aleph.xdr.deny-rules.v1",
+  "moduleKey": "brute-force",
+  "rules": [
+    {
+      "id": "xdr.brute_force.203.0.113.10",
+      "decision": "deny",
+      "srcip": "203.0.113.10",
+      "expiresAt": "2026-09-27T01:12:40.000Z",
+      "alertIds": [
+        "bf-01",
+        "bf-02"
+      ],
+      "reason": "failure_burst_same_source (T1110.001, 실패 48건)"
+    },
+    {
+      "id": "xdr.brute_force.198.51.100.20",
+      "decision": "deny",
+      "srcip": "198.51.100.20",
+      "expiresAt": "2026-09-27T01:14:02.000Z",
+      "alertIds": [
+        "bf-03"
+      ],
+      "reason": "failure_burst_same_source (T1110.001, 실패 36건)"
+    },
+    {
+      "id": "xdr.brute_force.192.0.2.30",
+      "decision": "deny",
+      "srcip": "192.0.2.30",
+      "expiresAt": "2026-09-27T01:20:11.000Z",
+      "alertIds": [
+        "bf-04"
+      ],
+      "reason": "failure_burst_same_source (T1110.001, 실패 52건)"
+    },
+    {
+      "id": "xdr.brute_force.203.0.113.21",
+      "decision": "deny",
+      "srcip": "203.0.113.21",
+      "expiresAt": "2026-09-27T01:21:00.000Z",
+      "alertIds": [
+        "bf-05"
+      ],
+      "reason": "password_spray_many_accounts (T1110.003, 계정 20개)"
+    },
+    {
+      "id": "xdr.brute_force.198.51.100.44",
+      "decision": "deny",
+      "srcip": "198.51.100.44",
+      "expiresAt": "2026-09-27T03:02:15.000Z",
+      "alertIds": [
+        "bf-06"
+      ],
+      "reason": "failure_burst_same_source (T1110.001, 실패 61건)"
+    },
+    {
+      "id": "xdr.brute_force.203.0.113.15",
+      "decision": "deny",
+      "srcip": "203.0.113.15",
+      "expiresAt": "2026-09-27T03:05:40.000Z",
+      "alertIds": [
+        "bf-07"
+      ],
+      "reason": "failure_burst_same_source (T1110.001, 실패 40건)"
+    },
+    {
+      "id": "xdr.brute_force.192.0.2.18",
+      "decision": "deny",
+      "srcip": "192.0.2.18",
+      "expiresAt": "2026-09-27T05:10:02.000Z",
+      "alertIds": [
+        "bf-08"
+      ],
+      "reason": "failure_burst_same_source (T1110.001, 실패 70건)"
+    },
+    {
+      "id": "xdr.brute_force.198.51.100.8",
+      "decision": "deny",
+      "srcip": "198.51.100.8",
+      "expiresAt": "2026-09-27T06:22:18.000Z",
+      "alertIds": [
+        "bf-09"
+      ],
+      "reason": "password_spray_many_accounts (T1110.003, 계정 15개)"
+    },
+    {
+      "id": "xdr.brute_force.203.0.113.40",
+      "decision": "deny",
+      "srcip": "203.0.113.40",
+      "expiresAt": "2026-09-27T07:40:01.000Z",
+      "alertIds": [
+        "bf-10"
+      ],
+      "reason": "failure_burst_same_source (T1110.001, 실패 90건)"
+    }
+  ]
+}
