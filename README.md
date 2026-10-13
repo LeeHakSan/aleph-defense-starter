@@ -25,10 +25,11 @@
 
 <!-- checks-table:start -->
 
-점검 시각 2026-10-13T07:24:55.595Z · 커밋 9dd1430cc432 · 단계 12
+점검 시각 2026-10-13T07:30:52.573Z · 커밋 401a3a457298 · 단계 12
 
 | 단계 | 점검 | 기대 | 실제 응답(observed) | 결과 |
 |---|---|---|---|---|
+| 1 | s01-static-notes | /data.json에 메모가 없음 | HTTP 200 | 막음(기대대로) |
 | 2 | s02-static-copy | 다른 정적 사본(/notes.json)에 메모가 없음 | HTTP 404 | 막음(기대대로) |
 | 3 | s03-unauth-list | 로그인 없는 내 메모 목록은 거부 | HTTP 401 | 막음(기대대로) |
 | 3 | s03-fake-token | 서명이 틀린 위조 로그인 토큰은 거부 | HTTP 403 | 막음(기대대로) |
@@ -43,12 +44,13 @@
 | 8 | s08-write-notice | 반 공지 쓰기 거부 | HTTP 200; jsonReady=true | 막음(기대대로) |
 | 8 | s08-other-zone | 로그인 없는 강사 공지 조회 거부 | HTTP 401 | 막음(기대대로) |
 | 9 | s09-burst-read | 조회 폭주는 회수 제안 | HTTP 200; jsonReady=true | 막음(기대대로) |
+| 10 | s10-policy-verified | 검증한 정책 사본이 유효함 | HTTP 200; jsonReady=true | 막음(기대대로) |
 | 10 | s10-restore-unauth | 로그인 없는 복원 요청 거부(POST 가 필요해 보내지 않음) | not_run | 미실행 |
 | 11 | s11-device | 로그인 없는 기기 상태는 승인 전·자료 없음 | HTTP 200 | 막음(기대대로) |
 | 11 | s11-unsigned-read | 서명·승인 없는 읽기 요청 거부 | HTTP 403 | 막음(기대대로) |
 | 11 | s11-unsigned-write | 서명·승인 없는 수정 요청 거부(PUT 이 필요해 보내지 않음) | not_run | 미실행 |
 
-막음 16 · 뚫림 0 · 미실행 2
+막음 18 · 뚫림 0 · 미실행 2
 
 <!-- checks-table:end -->
 
