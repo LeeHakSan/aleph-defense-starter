@@ -39,11 +39,36 @@ export async function authenticate(request, response) {
   // 신원은 검증된 토큰에서만 얻는다. 요청에 실려 온 userId·role·owner_id는 읽지 않는다.
   const login = await verifyLogin(request.headers.authorization);
   if (!login) {
+    console.warn(JSON.stringify({ event: 'login_rejected', ...loginFailureHint(request.headers.authorization) }));
     response.setHeader('WWW-Authenticate', 'Bearer');
     fail(response, 401, 'LOGIN_REQUIRED');
     return null;
   }
   return { userId: login.userId.toLowerCase(), db: database, kind: login.kind };
+}
+
+// 로그인 거부 사유 분류만 남긴다. 토큰 원문·서명·사용자 ID(sub)는 남기지 않는다.
+function loginFailureHint(authorization) {
+  if (typeof authorization !== 'string' || !authorization) return { reason: 'no_authorization' };
+  const parts = /^Bearer ([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.[A-Za-z0-9_-]+$/u.exec(authorization);
+  if (!parts) return { reason: 'not_bearer_jwt' };
+  try {
+    const head = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    const claims = JSON.parse(Buffer.from(parts[2], 'base64url').toString('utf8'));
+    const issuer = claims.iss === config.judgeIssuer ? 'judge'
+      : claims.iss === config.identityProvider?.issuer ? 'student' : 'unknown';
+    const hint = { reason: 'verify_failed', issuer, alg: head.alg };
+    if (issuer === 'unknown' && typeof claims.iss === 'string') {
+      try { hint.issuerHost = new URL(claims.iss).host; } catch { hint.issuerHost = 'unparsable'; }
+    }
+    if (issuer === 'judge') {
+      Object.assign(hint, { aud: claims.aud, expectedAud: new URL(config.publicAppUrl).hostname,
+        role: claims.aleph_role, identity: claims.aleph_identity, ttl: claims.exp - claims.iat });
+    }
+    return hint;
+  } catch {
+    return { reason: 'unreadable_jwt' };
+  }
 }
 
 // 거부할 때는 자원 ID 와 짧은 사유만 로그에 남긴다. 토큰·사용자 ID·메모 본문은 남기지 않는다.

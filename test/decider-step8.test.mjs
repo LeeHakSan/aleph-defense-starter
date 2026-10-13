@@ -13,11 +13,10 @@ const ask = async (method, route, path, patch = {}) => {
   return out;
 };
 
-test('A(자료실 주인)는 자기 메모를 어떤 메모 id·등록 기기로든 읽고 고친다', async () => {
+test('A(자료실 주인)는 자기 기기로 자기 메모를 어떤 메모 id 로든 읽고 고친다', async () => {
   for (const [method, route, path, patch] of [['GET', '/notes', '/notes'], ['POST', '/notes', '/notes'],
     ['GET', '/notes/:id', '/notes/demo'], ['GET', '/notes/:id', `/notes/${ID}`], ['PUT', '/notes/:id', `/notes/${ID}`],
-    ['DELETE', '/notes/:id', '/notes/demo'], ['GET', '/notes/:id', '/notes/demo', { deviceId: 'c'.repeat(16) }],
-    ['GET', '/api/notes/:id', '/api/notes/demo']]) {
+    ['DELETE', '/notes/:id', '/notes/demo'], ['GET', '/api/notes/:id', '/api/notes/demo']]) {
     const out = await ask(method, route, path, patch);
     assert.equal(out.decision, 'allow', `${method} ${path}`);
     assert.deepEqual(out.ruleIds, ['device_registered', 'own_notes_zone']);
@@ -35,6 +34,14 @@ test('B 가 A 의 메모를 읽기·고치기·지우기, 목록·추가하면 �
   }
   for (const subjectId of [undefined, '', 'LEARNER_FIXTURE', 'learner_fixture ', 42]) {
     assert.equal((await ask('GET', '/notes/:id', '/notes/demo', { subjectId })).decision, 'deny', String(subjectId));
+  }
+});
+
+test('A 의 계정이라도 다른 기기·다른 반·다른 프로젝트에서 오면 자기 메모 구역이 아니다', async () => {
+  for (const patch of [{ deviceId: 'c'.repeat(16) }, { deviceId: undefined }, { classId: 'class_other' }, { projectId: 'project_other' }]) {
+    const out = await ask('GET', '/notes/:id', '/notes/demo', patch);
+    assert.equal(out.decision, 'deny', JSON.stringify(patch));
+    assert.deepEqual(out.ruleIds, ['own_notes_zone']);
   }
 });
 

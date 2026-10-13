@@ -9,12 +9,17 @@ export const RULE_IDS = Object.freeze([
   'unknown_route_deny',
 ]);
 
-// 구역 규칙(8단계): 엔진이 확인한 사용자(subjectId)·method·정확한 경로로 자료 구역을 가른다(기기는 위 기기 규칙이 먼저 본다).
-// 자기 메모 구역은 이 자료실 주인으로 등록된 사용자만 연다. 다른 사용자가 같은 메모 경로를 요청하면 거부한다.
+// 구역 규칙(8단계): 엔진이 확인한 사용자(subjectId)·기기(deviceId)·method·정확한 경로로 자료 구역을 가른다.
+// 자기 메모 구역은 이 자료실 주인으로 등록된 사용자가 등록된 자기 기기로, 같은 반·프로젝트에서 요청할 때만 연다.
+// 다른 사용자, 주인 계정을 쓰는 다른 기기, 다른 반·프로젝트의 같은 메모 경로 요청은 거부한다.
 // 강사 공지는 읽기만 열고, 수정은 계약에 강사 역할이 없으므로 판정기에서 열지 않는다(수정 권한은 자료 API 가 저장된 강사로 따로 확인).
 // 쿼리가 붙은 요청과 자료 ID 자리의 기능 이름(export 등)은 정확한 경로가 아니므로 거부한다.
-// 주인 목록에는 엔진 실습 요청(scripts/fixture-7.mjs)의 가상 주인만 있다. 실제 주인은 엔진이 확인한 가명 주체 ID 로 추가한다.
-const VAULT_OWNERS = Object.freeze(['learner_fixture']);
+// 주인 목록에는 엔진 실습 요청(scripts/fixture-7.mjs)의 가상 주인·기기만 있다. 실제 주인은 엔진이 확인한 가명 주체 ID·기기 ID 로 추가한다.
+const VAULT_OWNERS = Object.freeze([
+  Object.freeze({ classId: 'class_fixture', projectId: 'project_fixture', subjectId: 'learner_fixture', deviceId: 'aaaaaaaaaaaaaaaa' }),
+]);
+const isVaultOwner = (request) => VAULT_OWNERS.some(owner => owner.classId === request.classId
+  && owner.projectId === request.projectId && owner.subjectId === request.subjectId && owner.deviceId === request.deviceId);
 const ROUTE = /^(GET|POST|PUT|DELETE) (?:\/api)?(\/(?:notes|notices)(?:\/:id)?)$/u;
 const ID_SEGMENT = /^[A-Za-z0-9_-]{1,64}$/u;
 const RESERVED_IDS = new Set(['export', 'import', 'all', 'list', 'search', 'download', 'upload', 'bulk', 'backup', 'admin', 'new']);
@@ -77,7 +82,7 @@ function zoneRule(request, zone) {
     return zone.method === 'GET' ? { allow: 'class_notices_read_zone' } : { deny: 'notice_write_instructor_only' };
   }
   if (!NOTE_SHAPES[zone.method]?.includes(zone.item)) return { deny: 'unknown_route_deny' };
-  return VAULT_OWNERS.includes(request.subjectId) ? { allow: 'own_notes_zone' } : { deny: 'own_notes_zone' };
+  return isVaultOwner(request) ? { allow: 'own_notes_zone' } : { deny: 'own_notes_zone' };
 }
 
 function stepUpDone(request) {
