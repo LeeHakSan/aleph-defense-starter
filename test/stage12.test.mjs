@@ -105,9 +105,11 @@ test('작전실 화면: 관측에 실패하면 이전 수치와 표를 비운다
   assert.match(html, /!response\.ok \|\| data\?\.error \|\| !data\?\.summary/u);
 });
 
-test('작전실 화면: 결과 문구는 기대와 같음·기대와 다름·미실행뿐이고 색만으로 의미를 전하지 않는다', async () => {
+test('작전실 화면: 막음·뚫림·정상·미실행을 서로 다른 이름으로 적고 41종 시험표를 막음으로 표시하지 않는다', async () => {
   const html = await read('public/operations.html');
-  assert.match(html, /blocked: '기대와 같음', breached: '기대와 다름', as_expected: '기대와 같음', unexpected: '기대와 다름', not_run: '미실행'/u);
+  assert.match(html, /blocked: '막음\(거부 응답\)', breached: '뚫림', as_expected: '정상\(막음 아님\)', unexpected: '기대와 다름', not_run: '미실행'/u);
+  const matrixCode = html.slice(html.indexOf("fill('matrix'"), html.indexOf('async function observe'));
+  assert.doesNotMatch(matrixCode, /blocked|tag\(/u, '41종 시험표의 상태를 막음 태그로 바꾸지 않는다');
   assert.match(html, /span\.textContent = RESULT\[result\]/u);
 });
 
@@ -182,7 +184,9 @@ test('작전실 API: 실제 요청 ID·확인 시각·미실행을 구분해 담
     assert.equal(first.step, 12);
     assert.equal(first.summary.total, first.rows.length);
     assert.equal(first.summary.total, first.summary.blocked + first.summary.breached + first.summary.notRun);
-    assert.equal(first.summary.notRun, 1);
+    assert.equal(first.summary.notRun, 2);
+    assert.equal(first.attackMatrix.blocked, 0);
+    assert.equal(first.attackMatrix.items.some(item => 'relatedCases' in item), false);
     assert.equal(first.summary.breached, 0);
     assert.equal(first.summary.blocked, first.rows.filter(row => row.result === 'blocked').length);
     assert.equal(first.summary.blocked, first.summary.total - first.summary.notRun - first.summary.breached);

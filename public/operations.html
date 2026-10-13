@@ -57,7 +57,7 @@
 
     <section class="card">
       <h2>1~12단계 공격 점검 실측표</h2>
-      <p>위 점검 수치는 이 표의 줄 수와 결과만 센 것이며, 제출 묶음(<code>npm run bundle</code>)과 같은 점검 목록을 같은 코드로 보낸 읽기 요청(GET)의 결과입니다. 한 줄은 요청 하나입니다. 요청 ID 는 응답의 서버 요청 번호(Vercel 기록의 Request ID 와 같음)이고, 확인 시각은 그 요청을 보낸 시각입니다.</p>
+      <p>위 점검 수치는 이 표의 줄 수와 결과만 센 것이며, 막음은 이 배포에 실제로 보낸 요청이 거부 응답(401·403·405)을 받은 줄만 셉니다. 보내지 않았거나 경로가 없던(404) 줄은 미실행입니다. 제출 묶음(<code>npm run bundle</code>)과 같은 점검 목록을 같은 코드로 보낸 읽기 요청(GET)의 결과입니다. 한 줄은 요청 하나입니다. 요청 ID 는 응답의 서버 요청 번호(Vercel 기록의 Request ID 와 같음)이고, 확인 시각은 그 요청을 보낸 시각입니다.</p>
       <div class="scroll"><table>
         <thead><tr><th>단계</th><th>구분</th><th>요청과 응답</th><th>기대</th><th>실제</th><th>결과</th><th>요청 ID</th><th>확인 시각</th></tr></thead>
         <tbody id="rows"></tbody>
@@ -98,7 +98,7 @@
       <h2>41종 공격 시험표</h2>
       <p id="matrix-summary"></p>
       <div class="scroll"><table>
-        <thead><tr><th>번호</th><th>이름</th><th>단계</th><th>공격</th><th>상태</th><th>이 점검과의 관계</th></tr></thead>
+        <thead><tr><th>번호</th><th>이름</th><th>단계</th><th>공격</th><th>상태</th><th>메모</th></tr></thead>
         <tbody id="matrix"></tbody>
       </table></div>
     </section>
@@ -106,8 +106,8 @@
 
   <script type="module">
     const $ = (id) => document.getElementById(id);
-    const KIND = { forbidden: '금지 요청', normal: '정상 요청', rule: '규칙(가상 입력)', logged_in: '로그인 필요' };
-    const RESULT = { blocked: '기대와 같음', breached: '기대와 다름', as_expected: '기대와 같음', unexpected: '기대와 다름', not_run: '미실행' };
+    const KIND = { forbidden: '금지 요청', normal: '정상 요청', rule: '규칙(가상 입력)', logged_in: '로그인 필요', not_sent: '보내지 않음' };
+    const RESULT = { blocked: '막음(거부 응답)', breached: '뚫림', as_expected: '정상(막음 아님)', unexpected: '기대와 다름', not_run: '미실행' };
 
     function cell(text, className) {
       const td = document.createElement('td');
@@ -140,7 +140,7 @@
     function render(data) {
       $('failure').classList.add('hidden');
       const s = data.summary;
-      fill('summary', [['점검', s.total], ['기대와 같음', s.blocked], ['기대와 다름', s.breached], ['미실행', s.notRun]].map(([label, value]) => {
+      fill('summary', [['점검', s.total], ['막음(실제 거부 응답)', s.blocked], ['뚫림', s.breached], ['미실행', s.notRun]].map(([label, value]) => {
         const box = document.createElement('div');
         const num = document.createElement('b');
         const text = document.createElement('span');
@@ -187,11 +187,11 @@
         : `안전 정책 사본 검증 안 됨(${copy.error})`) + ` · 메모 사본: ${data.recovery.memoBackups.state === 'not_run' ? '미실행' : data.recovery.memoBackups.state} (${data.recovery.memoBackups.note})`;
 
       const m = data.attackMatrix;
-      $('matrix-summary').textContent = `전체 ${m.total}종 · 이 저장소에서 재현해 관측한 것 ${m.executed}종 · 미실행 ${m.notRun}종. 시험표의 값은 계획이며 이 화면은 그 값을 바꾸지 않습니다.`;
+      $('matrix-summary').textContent = `전체 ${m.total}종 · 실행 ${m.executed}종 · 미실행 ${m.notRun}종 · 막음으로 센 것 ${m.blocked}종. 이 표는 시험 계획이고 결과가 아닙니다. 위 실측표의 막음 수와 섞지 않습니다.`;
       fill('matrix', m.items.map((item) => {
         const tr = document.createElement('tr');
         tr.append(cell(String(item.no)), cell(`${item.name} (${item.region})`), cell(item.stage === null ? '미확인' : `${item.stage}단계`), cell(item.attack ?? '미확인'),
-          tag(item.status === 'executed' ? 'blocked' : 'not_run'), cell(`${item.relatedCases.length ? `관련 점검 ${item.relatedCases.join(', ')}. ` : ''}${item.note}`));
+          cell(item.status === 'executed' ? '실행함(결과는 실측표)' : '미실행'), cell(item.note));
         return tr;
       }));
     }

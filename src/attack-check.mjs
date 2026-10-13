@@ -47,7 +47,9 @@ async function probe(ctx, caseId, requestKey, path, { method = 'GET', headers = 
   }
 }
 
-const DENIED = new Set([401, 403, 404, 405, 503]);
+// 막음은 보호 장치가 요청을 받아 거부한 응답(401·403·405)만이다. 404(경로 없음)·5xx(서버 오류)는 공격이 보호 장치에 닿지 않은 것이라 막음으로 세지 않고 not_run 으로 둔다.
+const DENIED = new Set([401, 403, 405]);
+const unreached = (r) => r.status === 404 || r.status >= 500;
 const denied = (r) => r.ran && DENIED.has(r.status) && !r.hasNotes;
 const gated = (r) => GATED_MARKERS.filter(([, pattern]) => pattern.test(r.text)).map(([name]) => name);
 // observed 는 이 사실만 담는다: HTTP 상태, 응답 JSON 에 ready 가 있으면 jsonReady.
@@ -61,6 +63,7 @@ function screenOutcome(request, check) {
 
 function outcome(request, check) {
   if (!request.ran) return { result: 'not_run', observed: 'network_error' };
+  if (unreached(request)) return { result: 'not_run', observed: facts(request) };
   return { result: check(request) ? 'blocked' : 'breached', observed: facts(request) };
 }
 
@@ -103,7 +106,12 @@ export const CASES = [
   denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 거부', () => ['read', '/api/my/notes', { headers: { authorization: `Bearer ${FAKE_JWT}` } }]),
   denyCase('s04-query-identity', 4, '쿼리로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => ['read', `/api/my/notes?userId=${TEST_UUID}&role=instructor`]),
   denyCase('s04-header-identity', 4, '헤더로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => ['read', '/api/my/notes', { headers: { 'x-user-id': TEST_UUID, 'x-role': 'instructor' } }]),
-  denyCase('s05-direct-table', 5, '원본 자료 주소(/rest/v1/notes)를 이 주소로 직접 읽을 수 없어야 함', () => ['read', '/rest/v1/notes']),
+  {
+    attackId: 's05-direct-table', stage: 5, kind: 'not_sent', expected: '원본 자료 표를 직접 읽으면 거부되어야 함(원본 자료 API 는 이 배포 주소가 아니라서 보내지 않음)',
+    async run() {
+      return { requests: [], result: 'not_run', observed: 'not_run' };
+    },
+  },
   denyCase('s10-restore-unauth', 10, '로그인 없는 복구 경로(/api/restore/:noteId) 요청은 거부(읽기 요청만 보내므로 GET 으로 확인)', () => ['read', `/api/restore/${TEST_UUID}`]),
   denyCase('s12-unauth-list', 12, '무인증 조회: 로그인 없이 자기 메모 목록을 요청하면 거부', () => ['read', '/api/my/notes']),
   denyCase('s12-other-note-id', 12, '로그인 없이 다른 사람 메모 번호를 넣어 조회하면 거부(타인 계정으로 로그인한 조회는 아님)', () => ['read', `/api/notes/${TEST_UUID}`]),
