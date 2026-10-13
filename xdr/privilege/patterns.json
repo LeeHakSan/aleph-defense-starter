@@ -1,0 +1,86 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "privilege",
+  "source": "MITRE ATT&CK T1068 (Exploitation for Privilege Escalation), T1078 (Valid Accounts)",
+  "minRepeats": 3,
+  "patterns": [
+    {
+      "name": "admin_group_added",
+      "technique": "T1078",
+      "condition": "평범한 계정이 관리자 그룹에 추가되거나 들어감 (과제·수업 같은 관리자가 아닌 그룹은 해당 없음)",
+      "basis": "MITRE ATT&CK T1078: 정상 계정을 손에 넣은 공격자는 그 계정을 관리자 그룹에 넣어 권한을 올린다."
+    },
+    {
+      "name": "admin_command_after_promotion",
+      "technique": "T1068",
+      "condition": "방금 관리자가 된 계정이 곧바로 관리자·권한 명령을 실행함",
+      "basis": "MITRE ATT&CK T1068: 권한 상승에 성공한 공격자는 올라간 권한으로 바로 관리자 명령을 실행해 다음 단계로 넘어간다."
+    },
+    {
+      "name": "admin_command_unusual_context",
+      "technique": "T1068",
+      "condition": "관리자 명령이 처음 보는 주소에서, 또는 수업 시간·업무 시간 밖에 실행됨",
+      "basis": "MITRE ATT&CK T1078: 도용한 계정은 평소와 다른 주소나 시각에 쓰이는 경우가 많아 평소 사용 형태와 비교하면 드러난다."
+    },
+    {
+      "name": "session_elevated_unusual_source",
+      "technique": "T1068",
+      "condition": "세션이 관리자 권한으로 바뀌었고 요청 주소가 처음 보는 곳임",
+      "basis": "MITRE ATT&CK T1068: 이미 열린 세션의 권한을 올리는 것은 권한 상승 악용의 대표적인 모양이며, 낯선 주소와 함께면 도용을 의심한다."
+    },
+    {
+      "name": "borrowed_account_privilege",
+      "technique": "T1078",
+      "condition": "다른 계정의 권한으로 관리자 명령을 실행함",
+      "basis": "MITRE ATT&CK T1078: 공격자는 다른 사람의 계정 권한을 빌려 자기 흔적을 숨기며 관리자 명령을 실행한다."
+    },
+    {
+      "name": "admin_group_flap",
+      "technique": "T1078",
+      "condition": "관리자 그룹에서 빠진 계정이 짧은 시간 뒤에 다시 관리자로 들어옴",
+      "basis": "MITRE ATT&CK T1078: 권한을 잠시 숨겼다가 되돌리는 것은 감시를 피하려는 계정 도용의 한 형태다."
+    },
+    {
+      "name": "multi_account_admin_add",
+      "technique": "T1078",
+      "condition": "같은 주소에서 계정 minRepeats(3)개 이상이 관리자 그룹에 추가됨 (data.count >= 3)",
+      "basis": "MITRE ATT&CK T1078: 한 주소에서 여러 계정을 한꺼번에 관리자로 올리는 것은 자동화된 권한 확보의 신호다."
+    },
+    {
+      "name": "off_hours_privilege_use",
+      "technique": "T1078",
+      "condition": "수업 시간 밖이거나 업무처럼 보이지 않는 시각에 권한 변경·관리자 명령이 있음 (보조 신호)",
+      "basis": "MITRE ATT&CK T1078: 도용한 계정은 계정 주인이 쓰지 않는 시각에 쓰이는 경우가 많아 확신도를 높이는 보조 근거가 된다."
+    },
+    {
+      "name": "admin_command_usual_context",
+      "technique": "T1068",
+      "condition": "관리자 명령이 평소 주소에서 한 번 실행됨 (알림에 그치며 막지 않음)",
+      "basis": "MITRE ATT&CK T1068: 평소 주소의 관리자 명령 한 번은 정상 작업일 수 있어 막지 않고 알려서 사람이 보게 한다."
+    },
+    {
+      "name": "elevation_without_followup",
+      "technique": "T1068",
+      "condition": "권한 상승 시도가 있었지만 취소됐거나 이어진 명령이 없음 (알림에 그치며 막지 않음)",
+      "basis": "MITRE ATT&CK T1068: 상승이 끝나지 않은 시도는 실제 악용인지 확인되지 않으므로 알려서 확인하게 한다."
+    },
+    {
+      "name": "failed_admin_command",
+      "technique": "T1068",
+      "condition": "관리자 명령이 실패로 끝남 (알림에 그치며 막지 않음)",
+      "basis": "MITRE ATT&CK T1068: 실패한 관리자 명령은 권한 없는 시도일 뿐 상승이 일어난 것은 아니므로 알리기만 한다."
+    },
+    {
+      "name": "non_admin_group_change",
+      "technique": "T1078",
+      "condition": "관리자가 아닌 그룹의 추가·생성·설명 변경 (알림에 그치며 막지 않음)",
+      "basis": "MITRE ATT&CK T1078: 관리자 권한이 없는 그룹 변경은 권한 상승이 아니므로 막지 않고 변경 기록으로만 알린다."
+    },
+    {
+      "name": "tagged_without_signal",
+      "technique": "T1068",
+      "condition": "T1068·T1078 경보이지만 위 패턴이 없음 (알림에 그치며 막지 않음)",
+      "basis": "MITRE ATT&CK T1068, T1078: 기법 표지가 붙었어도 권한 상승의 실제 근거가 없으면 알려서 사람이 확인하게 한다."
+    }
+  ]
+}

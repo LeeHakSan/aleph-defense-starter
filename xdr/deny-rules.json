@@ -304,6 +304,95 @@
         "ps-08"
       ],
       "reason": "not_in_baseline_item+remain_after_reboot+temp_folder_payload · T1543/T1053 (수준 12)"
+    },
+    {
+      "id": "xdr.privilege.203.0.113.11.user01",
+      "decision": "deny",
+      "srcip": "203.0.113.11",
+      "srcuser": "user01",
+      "expiresAt": "2026-09-27T01:15:40.000Z",
+      "alertIds": [
+        "pv-01",
+        "pv-02"
+      ],
+      "reason": "admin_group_added · T1068/T1078 (수준 12)"
+    },
+    {
+      "id": "xdr.privilege.198.51.100.11.user02",
+      "decision": "deny",
+      "srcip": "198.51.100.11",
+      "srcuser": "user02",
+      "expiresAt": "2026-09-27T02:03:12.000Z",
+      "alertIds": [
+        "pv-03"
+      ],
+      "reason": "admin_command_unusual_context+off_hours_privilege_use · T1068/T1078 (수준 11)"
+    },
+    {
+      "id": "xdr.privilege.192.0.2.11.user03",
+      "decision": "deny",
+      "srcip": "192.0.2.11",
+      "srcuser": "user03",
+      "expiresAt": "2026-09-27T02:19:08.000Z",
+      "alertIds": [
+        "pv-04"
+      ],
+      "reason": "admin_group_added+admin_command_after_promotion · T1068/T1078 (수준 12)"
+    },
+    {
+      "id": "xdr.privilege.203.0.113.17.user04",
+      "decision": "deny",
+      "srcip": "203.0.113.17",
+      "srcuser": "user04",
+      "expiresAt": "2026-09-27T03:06:21.000Z",
+      "alertIds": [
+        "pv-05"
+      ],
+      "reason": "admin_group_added+multi_account_admin_add · T1068/T1078 (수준 10)"
+    },
+    {
+      "id": "xdr.privilege.198.51.100.17.user05",
+      "decision": "deny",
+      "srcip": "198.51.100.17",
+      "srcuser": "user05",
+      "expiresAt": "2026-09-27T05:08:02.000Z",
+      "alertIds": [
+        "pv-06"
+      ],
+      "reason": "session_elevated_unusual_source · T1068/T1078 (수준 12)"
+    },
+    {
+      "id": "xdr.privilege.192.0.2.17.user06",
+      "decision": "deny",
+      "srcip": "192.0.2.17",
+      "srcuser": "user06",
+      "expiresAt": "2026-09-27T06:16:29.000Z",
+      "alertIds": [
+        "pv-07"
+      ],
+      "reason": "admin_group_added+admin_command_unusual_context+off_hours_privilege_use · T1068/T1078 (수준 11)"
+    },
+    {
+      "id": "xdr.privilege.203.0.113.27.user07",
+      "decision": "deny",
+      "srcip": "203.0.113.27",
+      "srcuser": "user07",
+      "expiresAt": "2026-09-27T07:02:18.000Z",
+      "alertIds": [
+        "pv-08"
+      ],
+      "reason": "borrowed_account_privilege · T1068/T1078 (수준 12)"
+    },
+    {
+      "id": "xdr.privilege.198.51.100.27.user08",
+      "decision": "deny",
+      "srcip": "198.51.100.27",
+      "srcuser": "user08",
+      "expiresAt": "2026-09-27T07:33:07.000Z",
+      "alertIds": [
+        "pv-09"
+      ],
+      "reason": "admin_group_added+admin_group_flap · T1068/T1078 (수준 10)"
     }
   ]
 }

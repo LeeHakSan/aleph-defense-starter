@@ -70,7 +70,7 @@
     1. `npm run policy:plan` — 차이 0개이거나, 복원 뒤에는 `바뀔 항목 0개`여야 합니다. 시험 정책이 바뀌었으면 보여 준 확인값으로 `npm run policy:restore -- <확인값>`.
     2. `npm run decider:test` → `npm run fixture:7` → `npm run detect:test` — 6·7·9단계 가상 요청·사건(각각 심판 판정이 아닙니다).
     3. `node --test test/*.test.mjs` — 8·10단계 구역·권한·복구·정책 시험을 포함한 전체 시험.
-    4. `npm run xdr:run -- brute-force` → `npm run xdr:run -- web-injection` → `npm run xdr:run -- known-cve` → `npm run xdr:run -- persistence` — 보너스 결과 파일이 그대로인지 `git status`로 확인.
+    4. `npm run xdr:run -- brute-force` → `npm run xdr:run -- web-injection` → `npm run xdr:run -- known-cve` → `npm run xdr:run -- persistence` → `npm run xdr:run -- privilege` — 보너스 결과 파일이 그대로인지 `git status`로 확인.
     5. 배포 뒤 로그인 없이 `curl -i https://VERCEL_APP_URL/api/notes`, `/api/my/notes`, `/api/notices`, `POST /api/restore/<id>` → 모두 401, `/data.json`은 메모 없음.
     6. 11단계부터 보호 API는 승인 확인이 먼저라 로그인한 시험 계정 A·B 실측은 승인 어댑터 연결 전에는 503이 나옵니다(미실행): 로그인한 시험 계정 A·B 실측(남의 메모 조회·수정·목록 거부, 공지 수정 거부, 자기 메모 정상 사용): 시험 계정 로그인 정보가 없는 자동 점검에서는 **미실행**입니다.
     7. `npm run bundle` — 직접 점검 결과와 미실행 항목을 읽습니다.
