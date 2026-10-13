@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
@@ -51,10 +52,12 @@ test('build identity publishes the original api url only as a plain https path',
   }
 });
 
+const realStep = JSON.parse(await readFile(new URL('../aleph.config.json', import.meta.url), 'utf8')).step;
+
 test('attack checks call the deployed app without credentials and flag an unprotected one', async () => {
   const stepConfig = {
     ...config,
-    step: 8,
+    step: realStep,
     identityProvider: {
       issuer: 'https://project.supabase.co/auth/v1',
       jwksUrl: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
