@@ -330,20 +330,11 @@ test('규칙 점검 응답은 학생 작업 출처와 제공 엔진을 밝히고
   }
 });
 
-test('README와 안내 묶음(package/README.md) 맨 위에 학생 몫과 제공 엔진(ALEPH SDP 엔진)이 두 갈래로 나뉘어 있고 시작 틀 문구·꾸민 글씨·비밀값이 없다', async () => {
-  for (const path of ['README.md', 'package/README.md']) {
-    const text = await read(path);
-    const top = text.slice(0, 3500);
-    assert.match(top, /## 무엇을 누가 만들었나/u, path);
-    assert.match(top, /\| 학생이 만든 것 \| 판정기\(`src\/decider\.mjs`\), 탐지 규칙\(`src\/detect\.mjs`\), 접속 앱\(`public\/`/u, path);
-    assert.match(top, /자료실\(`api\/`/u, path);
-    assert.match(top, /\| 제공 엔진 \| ALEPH SDP 엔진\./u, path);
-    assert.match(top, /이 저장소에는 엔진 코드가 없습니다/u, path);
-    assert.equal((top.match(/^\| (학생이 만든 것|제공 엔진|[^|]*시작 틀[^|]*) \|/gmu) ?? []).length, 2, path);
-    assert.doesNotMatch(text, /\*\*/u, `${path}: 꾸민 글씨(굵게)를 쓰지 않는다`);
-    assert.doesNotMatch(text, /sb_secret_|sb_publishable_|eyJ[\w-]{10,}\.|Bearer\s+[\w.-]{16,}/u, path);
-  }
-  const readme = await read('README.md');
-  assert.match(readme.split('\n')[0], /^# 최 부장 자료실/u);
-  assert.doesNotMatch(readme.slice(0, readme.indexOf('## 참고: 수업 시작 틀 안내')), /시작 틀 R5|1단계에서 학생 본인이 GitHub 저장소와 Vercel 배포를 만드는 출발점/u);
+test('README에 학생 몫과 제공 엔진(ALEPH SDP 엔진)의 출처 표, 실측 결과 표 자리, 41종 문장이 있고 비밀값이 없다', async () => {
+  const text = await read('README.md');
+  assert.match(text, /\| 학생이 만든 것 \| 판정기\(`src\/decider\.mjs`\), 탐지 규칙\(`src\/detect\.mjs`\)/u);
+  assert.match(text, /\| 제공 엔진 \| \*\*ALEPH SDP 엔진\*\*/u);
+  assert.match(text, /<!-- checks-table:start -->[\s\S]*<!-- checks-table:end -->/u);
+  assert.match(text, /41종 공격 전체는 심판이 보내며 이 저장소에서는 실행하지 않았습니다/u);
+  assert.doesNotMatch(text, /sb_secret_|sb_publishable_|eyJ[\w-]{10,}\.|Bearer\s+[\w.-]{16,}/u);
 });
