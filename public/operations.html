@@ -187,7 +187,7 @@
         : `안전 정책 사본 검증 안 됨(${copy.error})`) + ` · 메모 사본: ${data.recovery.memoBackups.state === 'not_run' ? '미실행' : data.recovery.memoBackups.state} (${data.recovery.memoBackups.note})`;
 
       const m = data.attackMatrix;
-      $('matrix-summary').textContent = `전체 ${m.total}종 · 실행 ${m.executed}종 · 미실행 ${m.notRun}종 · 막음으로 센 것 ${m.blocked}종. 이 표는 시험 계획이고 결과가 아닙니다. 위 실측표의 막음 수와 섞지 않습니다.`;
+      $('matrix-summary').textContent = `전체 ${m.total}종 · 실행 ${m.executed}종 · 미실행 ${m.notRun}종. 이 표는 시험 계획이고 결과가 아닙니다.`;
       fill('matrix', m.items.map((item) => {
         const tr = document.createElement('tr');
         tr.append(cell(String(item.no)), cell(`${item.name} (${item.region})`), cell(item.stage === null ? '미확인' : `${item.stage}단계`), cell(item.attack ?? '미확인'),

@@ -49,7 +49,6 @@ async function observe() {
     recovery: { ...recovery, memoBackups: { state: 'not_run', note: '메모 사본 개수는 로그인·기기 승인이 필요한 정보라 읽지 않았다.' } },
     attackMatrix: {
       total: planned.length, executed, notRun: planned.length - executed, source: 'data/attack-matrix.json',
-      blocked: 0, passed: 0,
       items: planned.map(({ no, name, region, stage, attack, status, note }) => ({ no, name, region, stage, attack, status, note })),
     },
   };

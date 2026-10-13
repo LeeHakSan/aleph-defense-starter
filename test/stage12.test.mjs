@@ -185,7 +185,7 @@ test('작전실 API: 실제 요청 ID·확인 시각·미실행을 구분해 담
     assert.equal(first.summary.total, first.rows.length);
     assert.equal(first.summary.total, first.summary.blocked + first.summary.breached + first.summary.notRun);
     assert.equal(first.summary.notRun, 6);
-    assert.equal(first.attackMatrix.blocked, 0);
+    assert.deepEqual(Object.keys(first.attackMatrix).sort(), ['executed', 'items', 'notRun', 'source', 'total'], '41종 표 요약에는 막음·통과 항목을 두지 않는다');
     assert.equal(first.attackMatrix.items.some(item => 'relatedCases' in item), false);
     assert.equal(first.summary.breached, 0);
     assert.equal(first.summary.blocked, first.rows.filter(row => row.result === 'blocked').length);
