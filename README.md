@@ -2,6 +2,22 @@
 
 이 저장소는 1단계에서 학생 본인이 GitHub 저장소와 Vercel 배포를 만드는 출발점입니다. 포함된 메모 네 건은 가상 자료입니다. 실제 학생 자료, 토큰, 비밀키를 넣지 마세요.
 
+## 점검 기록과 작전실 화면 (12단계)
+
+- 탈환 작전실: 배포 주소 첫 화면과 `/operations.html`은 서버 점검 기록(`GET /api/checks`)을 계산하지 않고 그대로 옮깁니다. 서버는 `npm run bundle`과 같은 점검 코드(`src/attack-check.mjs`)를 이 배포에 실제로 보내 점검 항목·막은 공격·뚫린 공격·실행하지 않은 점검을 셉니다. 기록을 읽지 못하면 수치를 비웁니다. 출처는 학생이 만든 것과 제공 엔진(ALEPH SDP 엔진)으로 나눠 화면과 기록에 적었습니다.
+- 제출 묶음의 점검 코드는 import 없는 한 파일이며 배포 주소에 GET 요청만 보냅니다. 쓰기 요청이 필요한 점검 2건(복원 `POST`, 수정 `PUT`)은 보내지 않고 `observed`와 `result`를 `not_run`으로 둡니다. `observed`에는 HTTP 상태와 jsonReady 같은 대조 가능한 값만 적습니다.
+- 6~9단계 규칙 점검은 서버의 `GET /api/checks?case=…`가 고정된 가상 입력으로 학생 판정기·탐지 규칙을 실행한 결과이며 실제 사용자·기기 상태가 아닙니다. 응답에 출처(`source`)와 제공 엔진(`engine`: ALEPH SDP 엔진)을 적고, 엔진이 그 판정을 실제 요청에서 집행했는지는 이 저장소에서 확인하지 못하므로 `engineEnforced`를 `not_run`으로 둡니다.
+- 41종 공격 전체는 심판이 보내며 이 저장소에서는 실행하지 않았습니다. 아래 표에 없는 공격을 통과로 적지 않습니다.
+- 표 만드는 절차: 검사할 커밋을 배포한 뒤 `bundle-notes.json`에 이번에 한 일을 적고 `npm run bundle`을 실행하면 `artifacts/submission.json`에 실제 요청 결과가 남습니다. `npm run checks:table`은 그 결과를 고치지 않고 표로 출력하고, `npm run checks:table -- --write`는 아래 표를 바꿔 씁니다. 보내지 못한 점검은 미실행으로 남습니다. 로그인이 필요한 정상 요청(내 메모 조회)은 묶음에서 보내지 않으므로(토큰을 다루지 않음) 작전실에서 확인합니다.
+
+### 실측 결과 (`npm run bundle` → `npm run checks:table`)
+
+<!-- checks-table:start -->
+
+(`npm run bundle` 실행 뒤 `npm run checks:table -- --write`로 채웁니다.)
+
+<!-- checks-table:end -->
+
 ## 학생이 하는 일: 세 걸음
 
 1. GitHub 계정을 만듭니다.

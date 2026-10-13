@@ -14,7 +14,8 @@
     "policy:plan": "node scripts/policy-recovery.mjs plan",
     "policy:restore": "node scripts/policy-recovery.mjs restore",
     "test": "node --test test/*.test.mjs",
-    "check": "node scripts/bundle.mjs"
+    "check": "node scripts/bundle.mjs",
+    "checks:table": "node scripts/checks-table.mjs"
   },
   "engines": {
     "node": ">=22"

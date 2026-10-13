@@ -42,7 +42,7 @@ async function observe() {
     screens,
     judgeRules: {
       ruleIds: [...RULE_IDS],
-      note: '서버가 고정된 가상 입력으로 규칙을 실행한 결과다. 실제 사용자·기기 상태가 아니다.',
+      note: '서버가 고정된 가상 입력으로 학생 판정기·탐지 규칙을 실행한 결과다. 실제 사용자·기기 상태가 아니며, 제공 엔진(ALEPH SDP 엔진)이 이 판정을 실제 요청에서 집행했는지는 미실행이다.',
       cases: rows.filter((row) => row.kind === 'rule').map(({ attackId, result, observed, requests }) => ({ attackId, result, observed, requestId: requests[0]?.requestId ?? null })),
     },
     detection: detectionSummary(),

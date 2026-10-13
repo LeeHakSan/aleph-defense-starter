@@ -1,9 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { decide } from './decider.mjs';
 import { detect } from './detect.mjs';
+import { ENGINE } from './sources.mjs';
 
 // 고정된 가상 입력으로만 판정기·탐지 규칙을 실행한다. 사용자가 보낸 값은 사례 이름(고정 목록과 비교)뿐이고 코드로 실행하지 않는다.
 // 실제 세션·메모·기기 상태는 읽거나 바꾸지 않는다. ready 는 "가상 조건에서 기대한 결과가 나왔다"는 뜻이며 실제 기기의 승인 상태가 아니다.
+// 응답의 source 는 학생 작업, engine 은 제공 엔진이다. 엔진이 그 판정을 실제 요청에서 집행했는지는 이 저장소에서 확인하지 못하므로 engineEnforced 는 not_run 이다.
+const SOURCE_DECIDER = '학생 판정기(src/decider.mjs)';
+const SOURCE_DETECT = '학생 탐지 규칙(src/detect.mjs)';
 const EMPTY_QUERY_SHA256 = createHash('sha256').update('').digest('hex');
 
 function request(overrides = {}) {
@@ -30,13 +34,15 @@ export async function runRuleCheck(caseId) {
   if (Object.hasOwn(RULE_CASES, caseId)) {
     const [build, expected] = RULE_CASES[caseId];
     const result = await decide(build());
-    return { ready: result.decision === expected, decision: result.decision, reasonCode: result.reasonCode, ruleIds: result.ruleIds };
+    return { ready: result.decision === expected, decision: result.decision, reasonCode: result.reasonCode, ruleIds: result.ruleIds,
+      source: SOURCE_DECIDER, engine: ENGINE, engineEnforced: 'not_run' };
   }
   if (caseId === 's09-burst-read') {
     const start = Date.now();
     const events = Array.from({ length: 121 }, (_, i) => ({ at: new Date(start + i * 2000).toISOString(), method: 'GET', identity: { sub: 'check_user' } }));
     const result = detect(events);
-    return { ready: result.action === 'propose_revocation', action: result.action, reasonCode: result.reasonCode ?? null };
+    return { ready: result.action === 'propose_revocation', action: result.action, reasonCode: result.reasonCode ?? null,
+      source: SOURCE_DETECT, engine: ENGINE, engineEnforced: 'not_run' };
   }
   return null;
 }

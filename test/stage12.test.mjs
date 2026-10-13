@@ -318,3 +318,12 @@ test('점검 기록에 학생 몫과 제공 엔진(ALEPH SDP 엔진)의 출처�
     globalThis.fetch = original;
   }
 });
+
+test('규칙 점검 응답은 학생 작업 출처와 제공 엔진을 밝히고 엔진 집행은 미실행으로 적는다', async () => {
+  for (const id of [...Object.keys(RULE_CASES), 's09-burst-read']) {
+    const result = await runRuleCheck(id);
+    assert.equal(result.engine, 'ALEPH SDP 엔진', id);
+    assert.equal(result.engineEnforced, 'not_run', id);
+    assert.match(result.source, /^학생 (판정기|탐지 규칙)\(src\//u, id);
+  }
+});
