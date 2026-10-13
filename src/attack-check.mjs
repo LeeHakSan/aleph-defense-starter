@@ -53,6 +53,12 @@ const gated = (r) => GATED_MARKERS.filter(([, pattern]) => pattern.test(r.text))
 // observed 는 이 사실만 담는다: HTTP 상태, 응답 JSON 에 ready 가 있으면 jsonReady.
 const facts = (r) => (r.ran ? `HTTP ${r.status}${typeof r.json?.ready === 'boolean' ? `; jsonReady=${r.json.ready}` : ''}` : 'network_error');
 
+// 정상 요청 확인: 공격을 막은 결과가 아니므로 blocked 를 쓰지 않고 as_expected·unexpected·not_run 으로만 적는다.
+function screenOutcome(request, check) {
+  if (!request.ran) return { result: 'not_run', observed: 'network_error' };
+  return { result: check(request) ? 'as_expected' : 'unexpected', observed: facts(request) };
+}
+
 function outcome(request, check) {
   if (!request.ran) return { result: 'not_run', observed: 'network_error' };
   return { result: check(request) ? 'blocked' : 'breached', observed: facts(request) };
@@ -62,7 +68,7 @@ function outcome(request, check) {
 const ruleCase = (attackId, stage, expected) => ({
   attackId, stage, kind: 'rule', expected,
   async run(ctx) {
-    const r = await probe(ctx, attackId, 'rule', `/api/checks?case=${attackId}`);
+    const r = await probe(ctx, attackId, 'read', `/api/checks?case=${attackId}`);
     if (!r.ran || r.status !== 200 || typeof r.json?.ready !== 'boolean') {
       return { requests: [r], result: 'not_run', observed: facts(r) };
     }
@@ -83,7 +89,7 @@ const denyCase = (attackId, stage, expected, plan) => ({
 // 200 으로 열린 정상 응답(정적 자료·승인 상태 조회)은 막음이 아니므로 아래 SCREEN_CASES 로 따로 확인한다.
 export const CASES = [
   denyCase('s03-unauth-list', 3, '로그인 없는 자기 목록 요청은 401 로 거부', () => ['read', '/api/my/notes']),
-  denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 거부', () => ['forged', '/api/my/notes', { headers: { authorization: `Bearer ${FAKE_JWT}` } }]),
+  denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 거부', () => ['read', '/api/my/notes', { headers: { authorization: `Bearer ${FAKE_JWT}` } }]),
   denyCase('s04-query-identity', 4, '쿼리로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => ['read', `/api/my/notes?userId=${TEST_UUID}&role=instructor`]),
   denyCase('s04-header-identity', 4, '헤더로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => ['read', '/api/my/notes', { headers: { 'x-user-id': TEST_UUID, 'x-role': 'instructor' } }]),
   denyCase('s05-direct-table', 5, '원본 자료 주소(/rest/v1/notes)를 이 주소로 직접 읽을 수 없어야 함', () => ['read', '/rest/v1/notes']),
@@ -94,9 +100,9 @@ export const CASES = [
   ruleCase('s08-write-notice', 8, '강사 공지 쓰기는 판정기가 거부'),
   ruleCase('s09-burst-read', 9, '조회 폭주 사건은 탐지 규칙이 회수 제안(propose_revocation)'),
   denyCase('s10-restore-unauth', 10, '로그인 없는 복구 경로(/api/restore/:noteId) 요청은 거부(읽기 요청만 보내므로 GET 으로 확인)', () => ['read', `/api/restore/${TEST_UUID}`]),
-  denyCase('s12-unauth-list', 12, '무인증 조회: 로그인 없이 자기 메모 목록을 요청하면 거부', () => ['list', '/api/my/notes']),
-  denyCase('s12-other-note-id', 12, '로그인 없이 다른 사람 메모 번호를 넣어 조회하면 거부(타인 계정으로 로그인한 조회는 아님)', () => ['other-note-get', `/api/notes/${TEST_UUID}`]),
-  denyCase('s12-out-of-zone', 12, '구역 밖 조회: 로그인 없이 강사 공지 경로를 조회하면 거부', () => ['out-of-zone', '/api/notices']),
+  denyCase('s12-unauth-list', 12, '무인증 조회: 로그인 없이 자기 메모 목록을 요청하면 거부', () => ['read', '/api/my/notes']),
+  denyCase('s12-other-note-id', 12, '로그인 없이 다른 사람 메모 번호를 넣어 조회하면 거부(타인 계정으로 로그인한 조회는 아님)', () => ['read', `/api/notes/${TEST_UUID}`]),
+  denyCase('s12-out-of-zone', 12, '구역 밖 조회: 로그인 없이 강사 공지 경로를 조회하면 거부', () => ['read', '/api/notices']),
   {
     attackId: 's12-other-user-read', stage: 12, kind: 'logged_in', expected: '로그인한 B 가 A 의 메모를 조회하면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)',
     async run() {
@@ -113,42 +119,42 @@ export const SCREEN_CASES = [
       const r = await probe(ctx, 's01-static-notes', 'read', '/data.json');
       const empty = r.ran && !r.hasNotes && !(Array.isArray(r.json?.notes) && r.json.notes.length);
       const marker = typeof ctx.config?.sampleMarker === 'string' && ctx.config.sampleMarker !== '' && r.text?.includes(ctx.config.sampleMarker);
-      return { requests: [r], ...outcome(r, (x) => empty && x.status !== 500 && !marker) };
+      return { requests: [r], ...screenOutcome(r, (x) => empty && x.status !== 500 && !marker) };
     },
   },
   {
     attackId: 's11-device-status', stage: 11, kind: 'normal', expected: '서버가 확인하지 못한 기기는 승인 상태(GET /api/device/status)가 approved:false 여야 함(정상 응답이라 막음으로 세지 않음)',
     async run(ctx) {
-      const r = await probe(ctx, 's11-device-status', 'status', '/api/device/status');
-      return { requests: [r], ...outcome(r, (x) => x.status === 200 && x.json?.approved === false && !x.hasNotes) };
+      const r = await probe(ctx, 's11-device-status', 'read', '/api/device/status');
+      return { requests: [r], ...screenOutcome(r, (x) => x.status === 200 && x.json?.approved === false && !x.hasNotes) };
     },
   },
   {
     attackId: 's10-policy-copy', stage: 10, kind: 'normal', expected: '검증한 안전 정책 사본을 다시 읽어 복원할 버전과 바뀔 범위를 보여 줘야 함(읽기 전용)',
     async run(ctx) {
       const r = await probe(ctx, 's10-policy-copy', 'read', '/api/recovery-plan');
-      return { requests: [r], ...outcome(r, (x) => x.status === 200 && x.json?.verified === true) };
+      return { requests: [r], ...screenOutcome(r, (x) => x.status === 200 && x.json?.verified === true) };
     },
   },
   {
     attackId: 's11-approval-screen', stage: 11, kind: 'normal', expected: '첫 화면(/)은 manifest 가 연결된 승인 화면이고 승인 전에는 로그인 폼·메모 목록·메모 요청·저장소 사용이 없어야 함',
     async run(ctx) {
-      const home = await probe(ctx, 's11-approval-screen', 'home', '/', { headers: { accept: 'text/html' } });
-      return { requests: [home], ...outcome(home, (h) => h.status === 200 && !gated(h).length && /rel=["']manifest["']/iu.test(h.text) && /기기 승인/u.test(h.text)) };
+      const home = await probe(ctx, 's11-approval-screen', 'read', '/', { headers: { accept: 'text/html' } });
+      return { requests: [home], ...screenOutcome(home, (h) => h.status === 200 && !gated(h).length && /rel=["']manifest["']/iu.test(h.text) && /기기 승인/u.test(h.text)) };
     },
   },
   {
     attackId: 's11-vault-screen', stage: 11, kind: 'normal', expected: '자료실 화면(/vault.html)은 승인 전에는 로그인 폼·메모 목록·메모 요청·저장소 사용이 없어야 함',
     async run(ctx) {
-      const vault = await probe(ctx, 's11-vault-screen', 'vault', '/vault.html', { headers: { accept: 'text/html' } });
-      return { requests: [vault], ...outcome(vault, (v) => v.status === 200 && !gated(v).length) };
+      const vault = await probe(ctx, 's11-vault-screen', 'read', '/vault.html', { headers: { accept: 'text/html' } });
+      return { requests: [vault], ...screenOutcome(vault, (v) => v.status === 200 && !gated(v).length) };
     },
   },
   {
     attackId: 's12-operations-screen', stage: 12, kind: 'normal', expected: '작전실 화면(/operations.html)에 로그인 폼·메모 목록·메모 요청·저장소 사용과 성공 문구가 없어야 함',
     async run(ctx) {
       const r = await probe(ctx, 's12-operations-screen', 'read', '/operations.html', { headers: { accept: 'text/html' } });
-      return { requests: [r], ...outcome(r, (x) => x.status === 200 && !gated(x).length && !/통과했습니다|모두 막았습니다|방어 성공/u.test(x.text)) };
+      return { requests: [r], ...screenOutcome(r, (x) => x.status === 200 && !gated(x).length && !/통과했습니다|모두 막았습니다|방어 성공/u.test(x.text)) };
     },
   },
 ];

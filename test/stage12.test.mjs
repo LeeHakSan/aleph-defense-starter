@@ -107,7 +107,7 @@ test('작전실 화면: 관측에 실패하면 이전 수치와 표를 비운다
 
 test('작전실 화면: 결과 문구는 기대와 같음·기대와 다름·미실행뿐이고 색만으로 의미를 전하지 않는다', async () => {
   const html = await read('public/operations.html');
-  assert.match(html, /blocked: '기대와 같음', breached: '기대와 다름', not_run: '미실행'/u);
+  assert.match(html, /blocked: '기대와 같음', breached: '기대와 다름', as_expected: '기대와 같음', unexpected: '기대와 다름', not_run: '미실행'/u);
   assert.match(html, /span\.textContent = RESULT\[result\]/u);
 });
 
@@ -258,4 +258,41 @@ test('점검 코드가 쓰는 한도: 읽기 전용이 아닌 요청과 25번째
   assert.match(source, /MAX_REQUESTS = 24/u);
   assert.doesNotMatch(source.replace(/\/\/.*$/gmu, ''), /method: '(POST|PUT|PATCH|DELETE)'/u);
   assert.doesNotMatch(source.replace(/\/\/.*$/gmu, ''), /JSON\.stringify\(body\)/u);
+});
+
+test('정상 요청 확인은 blocked 를 쓰지 않고, 모든 요청 이름은 read 이며, 점검 응답 어디에도 200 응답이 blocked 로 적히지 않는다', async () => {
+  const { observeAll, observeScreens } = await import('../src/attack-check.mjs');
+  const keys = [];
+  const fakeFetch = async (url, init) => {
+    keys.push(init.alephEvidence.requestKey);
+    const path = new URL(String(url)).pathname;
+    const body = path === '/api/checks' ? { ready: true } : path === '/api/device/status' ? { approved: false, connected: false }
+      : path === '/api/recovery-plan' ? { verified: true } : path === '/data.json' ? { notes: [] } : {};
+    return new Response(path === '/' || path.endsWith('.html') ? '<link rel="manifest" href="/m"> 기기 승인 상태' : JSON.stringify(body),
+      { status: ['/', '/vault.html', '/operations.html', '/data.json', '/api/recovery-plan', '/api/device/status', '/api/checks'].includes(path) ? 200 : 401 });
+  };
+  const attacks = await observeAll('https://student-defense.vercel.app', { fetch: fakeFetch });
+  const screens = await observeScreens('https://student-defense.vercel.app', { fetch: fakeFetch });
+  assert.ok(keys.length > 0 && keys.every(key => key === 'read'), [...new Set(keys)].join(','));
+  assert.ok(screens.length >= 6);
+  for (const row of screens) {
+    assert.ok(['as_expected', 'unexpected', 'not_run'].includes(row.result), `${row.attackId}: ${row.result}`);
+    assert.equal(row.requests.length, 1);
+  }
+  for (const row of attacks.filter(item => item.result === 'blocked')) {
+    assert.match(row.observed, /^HTTP (401|403|404|405|503)$|jsonReady=true$/u, `${row.attackId}: ${row.observed}`);
+  }
+  assert.equal(JSON.stringify(screens).includes('"blocked"'), false);
+});
+
+test('작전실 화면·README·제출 설명에서 41종과 통과·막음이 한 문장에 함께 나오지 않는다', async () => {
+  const pieces = [];
+  for (const file of ['public/operations.html', 'README.md', 'bundle-notes.json', 'data/attack-matrix.json']) {
+    const text = (await read(file).catch(() => '')).replace(/<[^>]+>/gu, ' ').replace(/\\n/gu, '\n');
+    for (const sentence of text.split(/[.。!?\n]/u)) pieces.push([file, sentence]);
+  }
+  const bad = pieces.filter(([, sentence]) => /41\s*종/u.test(sentence) && /통과|막았|막음|방어/u.test(sentence)).map(([file, sentence]) => `${file}: ${sentence.trim().slice(0, 80)}`);
+  assert.deepEqual(bad, []);
+  const html = await read('public/operations.html');
+  assert.doesNotMatch(html, /통과/u);
 });
