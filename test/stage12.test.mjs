@@ -78,8 +78,8 @@ test('41종 시험표: 41종이고 실행하지 않은 것을 통과로 바꿔 �
 });
 
 test('시험표가 가리키는 관련 점검은 실제로 있는 점검 ID 이다', async () => {
-  const { CASES, SCREEN_CASES } = await import('../src/attack-check.mjs');
-  const ids = new Set([...CASES, ...SCREEN_CASES].map(item => item.attackId));
+  const { CASES, SCREEN_CASES, RULE_CHECKS } = await import('../src/attack-check.mjs');
+  const ids = new Set([...CASES, ...SCREEN_CASES, ...RULE_CHECKS].map(item => item.attackId));
   for (const item of matrix.attacks) for (const id of item.relatedCases) assert.ok(ids.has(id), `${item.name}: ${id}`);
 });
 

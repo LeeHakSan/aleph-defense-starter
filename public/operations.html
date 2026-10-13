@@ -172,7 +172,7 @@
         return tr;
       }));
 
-      $('rule-ids').textContent = `구현한 규칙 ${data.judgeRules.ruleIds.length}개: ${data.judgeRules.ruleIds.join(', ')}`;
+      $('rule-ids').textContent = `구현한 규칙 ${data.judgeRules.ruleIds.length}개: ${data.judgeRules.ruleIds.join(', ')} · ${data.judgeRules.note}`;
       fill('rule-cases', data.judgeRules.cases.map((c) => {
         const li = document.createElement('li');
         li.textContent = `${c.attackId}: ${RESULT[c.result] ?? '미실행'} — ${c.observed} (요청 ID ${c.requestId ?? '없음'})`;

@@ -1,5 +1,5 @@
 import { RULE_IDS } from './decider.mjs';
-import { observeAll, observeScreens } from './attack-check.mjs';
+import { observeAll, observeRules, observeScreens } from './attack-check.mjs';
 import { detectionSummary } from './rule-check.mjs';
 import { loadRecoveryPlan } from './policy-files.mjs';
 import config from '../aleph.config.json' with { type: 'json' };
@@ -27,6 +27,7 @@ async function observe() {
   // 묶음(npm run bundle)과 같은 함수·같은 점검 목록으로 관측해서 수치가 어긋나지 않게 한다. 화면·정책 확인은 점검 수치에 넣지 않고 따로 둔다.
   const rows = await observeAll(config.publicAppUrl);
   const screens = await observeScreens(config.publicAppUrl);
+  const rules = await observeRules(config.publicAppUrl);
   const recovery = await recoverySummary();
   const planned = matrix.attacks;
   const executed = planned.filter((item) => item.status === 'executed').length;
@@ -40,7 +41,8 @@ async function observe() {
     screens,
     judgeRules: {
       ruleIds: [...RULE_IDS],
-      cases: rows.filter((row) => row.kind === 'rule').map(({ attackId, result, observed, requests }) => ({ attackId, result, observed, requestId: requests[0]?.requestId ?? null })),
+      note: '서버가 고정된 가상 입력으로 규칙을 실행한 결과다. 실제 공격 실행이 아니라서 점검 수치에 넣지 않는다.',
+      cases: rules.map(({ attackId, result, observed, requests }) => ({ attackId, result, observed, requestId: requests[0]?.requestId ?? null })),
     },
     detection: detectionSummary(),
     revocation: { connected: false, state: 'not_connected', note: '회수는 반 엔진이 집행하며 이 저장소에는 회수 연결이 없다. 수치는 null 이다.', revoked: null, elapsedSeconds: null },
