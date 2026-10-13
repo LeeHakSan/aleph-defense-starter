@@ -198,6 +198,31 @@ Vercel 배포 이력에 이전 버전이 남아 있으면 옛 `/data.json`도 �
 
 <!-- checks-table:start -->
 
-(`npm run bundle` 실행 뒤 `npm run checks:table -- --write`로 채웁니다.)
+점검 시각 2026-10-13T07:48:09.351Z · 커밋 c48f60d786d6 · 단계 12
+
+| 단계 | 점검 | 기대 | 실제 응답(observed) | 결과 |
+|---|---|---|---|---|
+| 1 | s01-static-notes | /data.json에 메모가 없음 | HTTP 200 | 막음(기대대로) |
+| 2 | s02-static-copy | 다른 정적 사본(/notes.json)에 메모가 없음 | HTTP 404 | 막음(기대대로) |
+| 3 | s03-unauth-list | 로그인 없는 내 메모 목록은 거부 | HTTP 401 | 막음(기대대로) |
+| 3 | s03-fake-token | 서명이 틀린 위조 로그인 토큰은 거부 | HTTP 403 | 막음(기대대로) |
+| 4 | s04-query-identity | 쿼리로 보낸 사용자·역할은 신원으로 쓰지 않고 거부 | HTTP 401 | 막음(기대대로) |
+| 4 | s04-header-identity | 헤더로 보낸 사용자·역할은 신원으로 쓰지 않고 거부 | HTTP 401 | 막음(기대대로) |
+| 4 | s04-other-note | 로그인 없이 남의 메모 한 건 조회 거부 | HTTP 401 | 막음(기대대로) |
+| 5 | s05-direct-table | 배포 주소로 원본 표(/rest/v1/notes)를 직접 읽을 수 없음 | HTTP 404 | 막음(기대대로) |
+| 6 | s06-unregistered | 미등록 기기 거부 | HTTP 200; jsonReady=true | 막음(기대대로) |
+| 7 | s07-compound | 복합 이상 접속은 추가 확인 | HTTP 200; jsonReady=true | 막음(기대대로) |
+| 8 | s08-unknown-route | 모르는 경로 거부 | HTTP 200; jsonReady=true | 막음(기대대로) |
+| 8 | s08-all-notes | 전체 메모 목록 거부 | HTTP 200; jsonReady=true | 막음(기대대로) |
+| 8 | s08-write-notice | 반 공지 쓰기 거부 | HTTP 200; jsonReady=true | 막음(기대대로) |
+| 8 | s08-other-zone | 로그인 없는 강사 공지 조회 거부 | HTTP 401 | 막음(기대대로) |
+| 9 | s09-burst-read | 조회 폭주는 회수 제안 | HTTP 200; jsonReady=true | 막음(기대대로) |
+| 10 | s10-policy-verified | 검증한 정책 사본이 유효함 | HTTP 200; jsonReady=true | 막음(기대대로) |
+| 10 | s10-restore-unauth | 로그인 없는 복원 요청 거부(POST 가 필요해 보내지 않음) | not_run | 미실행 |
+| 11 | s11-device | 로그인 없는 기기 상태는 승인 전·자료 없음 | HTTP 200 | 막음(기대대로) |
+| 11 | s11-unsigned-read | 서명·승인 없는 읽기 요청 거부 | HTTP 403 | 막음(기대대로) |
+| 11 | s11-unsigned-write | 서명·승인 없는 수정 요청 거부(PUT 이 필요해 보내지 않음) | not_run | 미실행 |
+
+막음 18 · 뚫림 0 · 미실행 2
 
 <!-- checks-table:end -->
