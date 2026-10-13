@@ -9,10 +9,14 @@ export const RULE_IDS = Object.freeze([
   'unknown_route_deny',
 ]);
 
-// 구역 규칙(8단계): 엔진이 확인한 method·route·path 가 정확히 맞는 자료 경로만 열어 준다.
-// 계약에는 자료 소유자나 강사 역할이 없으므로 판정기는 구역(경로 모양)만 가르고,
-// 소유자·강사 권한은 자료 API 가 저장된 값으로 다시 확인한다. 강사 공지 수정은 여기서 열지 않는다.
+// 구역 규칙(8단계): 엔진이 확인한 사용자(subjectId)·기기(deviceId)·method·정확한 경로가 모두 맞을 때만 연다.
+// 자기 메모 구역은 아래 주인 표에 적힌 사용자·기기와 그 사용자의 정확한 메모 경로만 열린다.
+// 표에 없는 사용자·기기, 남의 메모 경로는 거부한다. 강사 공지 수정은 판정기에서 열지 않는다.
 // 쿼리는 읽지 않고, 기능은 경로의 자료 ID 칸으로만 고른다(export 같은 기능 이름은 자료 ID 로 인정하지 않는다).
+// 지금 표에는 엔진 실습 요청(scripts/fixture-7.mjs)의 가상 사용자·기기만 있다. 실제 사용자는 엔진이 확인한 값으로 추가한다.
+const NOTE_OWNERS = Object.freeze([
+  Object.freeze({ subjectId: 'learner_fixture', deviceId: 'aaaaaaaaaaaaaaaa', noteIds: Object.freeze(['demo']) }),
+]);
 const ROUTE = /^(GET|POST|PUT|DELETE) (?:\/api)?(\/(?:notes|notices)(?:\/:id)?)$/u;
 const ID_SEGMENT = /^[A-Za-z0-9_-]{1,64}$/u;
 const RESERVED_IDS = new Set(['export', 'import', 'all', 'list', 'search', 'download', 'upload', 'bulk', 'backup', 'admin', 'new']);
@@ -65,15 +69,22 @@ function readZone(request) {
   const prefix = shape.slice(0, -3);
   const id = path.startsWith(prefix) ? path.slice(prefix.length) : '';
   if (!ID_SEGMENT.test(id) || RESERVED_IDS.has(id.toLowerCase())) return null;
-  return { resource, method: route[1], item };
+  return { resource, method: route[1], item, id };
 }
 
-function zoneRule(zone) {
+function ownsNote(request, zone) {
+  const owner = NOTE_OWNERS.find(entry => entry.subjectId === request.subjectId && entry.deviceId === request.deviceId);
+  if (!owner) return false;
+  return !zone.item || owner.noteIds.includes(zone.id);
+}
+
+function zoneRule(request, zone) {
   if (!zone) return { deny: 'unknown_route_deny' };
   if (zone.resource === 'notice') {
     return zone.method === 'GET' ? { allow: 'class_notices_read_zone' } : { deny: 'notice_write_instructor_only' };
   }
-  return NOTE_SHAPES[zone.method]?.includes(zone.item) ? { allow: 'own_notes_zone' } : { deny: 'unknown_route_deny' };
+  if (!NOTE_SHAPES[zone.method]?.includes(zone.item)) return { deny: 'unknown_route_deny' };
+  return ownsNote(request, zone) ? { allow: 'own_notes_zone' } : { deny: 'own_notes_zone' };
 }
 
 function stepUpDone(request) {
@@ -96,7 +107,7 @@ export async function decide(request) {
     return answer(request, 'deny', 'device_not_registered', ['device_registered']);
   }
 
-  const zone = zoneRule(readZone(request));
+  const zone = zoneRule(request, readZone(request));
   if (zone.deny) return answer(request, 'deny', 'zone_not_allowed', [zone.deny]);
 
   if (isCompositeAnomaly(request)) {

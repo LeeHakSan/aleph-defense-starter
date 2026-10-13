@@ -12,13 +12,36 @@ const ask = async (method, route, path, patch = {}) => {
   return out;
 };
 
-test('자기 메모 구역: 읽기·추가·수정·삭제 경로는 허용', async () => {
+test('자기 메모 구역: 주인 표의 사용자·기기는 자기 메모 경로와 목록·추가를 연다', async () => {
   for (const [method, route, path] of [['GET', '/notes', '/notes'], ['POST', '/notes', '/notes'],
-    ['GET', '/notes/:id', `/notes/${ID}`], ['PUT', '/notes/:id', `/notes/${ID}`], ['DELETE', '/notes/:id', '/notes/demo']]) {
+    ['GET', '/notes/:id', '/notes/demo'], ['PUT', '/notes/:id', '/notes/demo'], ['DELETE', '/notes/:id', '/notes/demo']]) {
     const out = await ask(method, route, path);
     assert.equal(out.decision, 'allow', `${method} ${path}`);
     assert.deepEqual(out.ruleIds, ['device_registered', 'own_notes_zone']);
   }
+});
+
+test('다른 사용자(B)가 A 의 메모를 읽거나 고치면 거부', async () => {
+  for (const method of ['GET', 'PUT', 'DELETE']) {
+    const out = await ask(method, '/notes/:id', '/notes/demo', { subjectId: 'learner_other' });
+    assert.equal(out.decision, 'deny', method);
+    assert.equal(out.reasonCode, 'zone_not_allowed');
+    assert.deepEqual(out.ruleIds, ['own_notes_zone']);
+  }
+  for (const method of ['GET', 'POST']) {
+    assert.equal((await ask(method, '/notes', '/notes', { subjectId: 'learner_other' })).decision, 'deny', method);
+  }
+});
+
+test('같은 사용자라도 표에 없는 기기나 남의 메모 경로는 거부', async () => {
+  assert.equal((await ask('GET', '/notes/:id', '/notes/demo', { deviceId: 'b'.repeat(16) })).decision, 'deny');
+  for (const path of [`/notes/${ID}`, '/notes/other', '/notes/demo2', '/notes/DEMO']) {
+    const out = await ask('GET', '/notes/:id', path);
+    assert.equal(out.decision, 'deny', path);
+    assert.deepEqual(out.ruleIds, ['own_notes_zone']);
+  }
+  assert.equal((await ask('GET', '/notes/:id', '/notes/demo', { subjectId: undefined })).decision, 'deny');
+  assert.equal((await ask('GET', '/notes/:id', '/notes/demo', { deviceId: undefined })).decision, 'deny');
 });
 
 test('강사 공지 구역: 읽기는 허용, 수정은 판정기에서 열지 않음', async () => {
@@ -88,6 +111,6 @@ test('이전 규칙 유지: 미등록 기기는 구역보다 먼저 거부, 복�
 });
 
 test('/api 접두사가 붙은 같은 모양도 같은 구역으로 본다', async () => {
-  assert.equal((await ask('GET', '/api/notes/:id', `/api/notes/${ID}`)).decision, 'allow');
+  assert.equal((await ask('GET', '/api/notes/:id', '/api/notes/demo')).decision, 'allow');
   assert.equal((await ask('PUT', '/api/notices/:id', `/api/notices/${ID}`)).decision, 'deny');
 });

@@ -51,26 +51,41 @@ test('build identity publishes the original api url only as a plain https path',
   }
 });
 
-test('first attack check reads public data.json without credentials', async () => {
+test('attack checks call the deployed app without credentials and flag an unprotected one', async () => {
+  const stepConfig = {
+    ...config,
+    step: 8,
+    identityProvider: {
+      issuer: 'https://project.supabase.co/auth/v1',
+      jwksUrl: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
+      audience: 'authenticated',
+    },
+  };
   const originalFetch = globalThis.fetch;
-  let requestUrl;
-  let options;
+  const calls = [];
   try {
     globalThis.fetch = async (url, init) => {
-      requestUrl = String(url);
-      options = init;
+      calls.push({ url: String(url), init });
       return new Response(JSON.stringify({ sampleMarker: 'SAMPLE_NOTE_1', notes: [{ title: '가상' }] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
     };
-    const [result] = await runAttackChecks(config);
-    assert.equal(requestUrl, 'https://student-defense.vercel.app/data.json');
-    assert.equal(options.redirect, 'error');
-    assert.match(result.observed, /확인 표시가 보임/u);
-    globalThis.fetch = async () => new Response('<html>not the data</html>', { status: 200 });
-    const [failed] = await runAttackChecks(config);
-    assert.match(failed.observed, /보이지 않음/u);
+    const exposed = await runAttackChecks(stepConfig);
+    assert.ok(exposed.length >= 1 && exposed.length <= 20);
+    assert.equal(exposed[0].attackId, 'data_json_notes_empty');
+    assert.match(exposed[0].observed, /메모 또는 확인 표시가 남아 있음/u);
+    const dataCall = calls.find(call => call.url === 'https://student-defense.vercel.app/data.json');
+    assert.ok(dataCall);
+    assert.equal(dataCall.init.redirect, 'error');
+    assert.equal(dataCall.init.headers.authorization, undefined);
+    assert.match(exposed.find(item => item.attackId === 'api_notes_list_no_token').observed, /거부되지 않음/u);
+    assert.match(exposed.find(item => item.attackId === 'api_notices_no_token').observed, /거부되지 않음/u);
+
+    globalThis.fetch = async () => new Response('<html>not the data</html>', { status: 401 });
+    const closed = await runAttackChecks(stepConfig);
+    assert.match(closed[0].observed, /메모·확인 표시 없음/u);
+    assert.match(closed.find(item => item.attackId === 'api_notices_no_token').observed, /자료 없이 거부됨/u);
   } finally {
     globalThis.fetch = originalFetch;
   }
