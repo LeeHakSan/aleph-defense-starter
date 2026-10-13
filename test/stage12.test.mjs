@@ -329,3 +329,13 @@ test('규칙 점검 응답은 학생 작업 출처와 제공 엔진을 밝히고
     assert.match(result.source, /^학생 (판정기|탐지 규칙|안전 정책 사본)\(/u, id);
   }
 });
+
+test('안내 묶음(package/README.md) 맨 위에 학생 몫과 제공 엔진(ALEPH SDP 엔진)이 두 갈래로 나뉘어 있고 비밀값이 없다', async () => {
+  const text = await read('package/README.md');
+  const top = text.slice(0, text.indexOf('## 준비물'));
+  assert.match(top, /## 무엇을 누가 만들었나/u);
+  assert.match(top, /\| 학생이 만든 것 \| 판정기\(`src\/decider\.mjs`\), 탐지 규칙\(`src\/detect\.mjs`\), 접속 앱\(`public\/`\), 자료실\(`api\/`/u);
+  assert.match(top, /\| 제공 엔진 \| ALEPH SDP 엔진\./u);
+  assert.equal((top.match(/^\| (학생이 만든 것|제공 엔진|[^|]*시작 틀[^|]*) \|/gmu) ?? []).length, 2);
+  assert.doesNotMatch(text, /sb_secret|service_role|eyJ[\w-]{10,}\.|Bearer\s+\S{12,}|sb_publishable/u);
+});
