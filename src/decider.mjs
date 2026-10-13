@@ -15,8 +15,13 @@ export const RULE_IDS = Object.freeze([
 // 쿼리는 읽지 않고, 기능은 경로의 자료 ID 칸으로만 고른다(export 같은 기능 이름은 자료 ID 로 인정하지 않는다).
 // 지금 표에는 엔진 실습 요청(scripts/fixture-7.mjs)의 가상 사용자·기기만 있다. 실제 사용자는 엔진이 확인한 값으로 추가한다.
 const NOTE_OWNERS = Object.freeze([
-  Object.freeze({ subjectId: 'learner_fixture', deviceId: 'aaaaaaaaaaaaaaaa', noteIds: Object.freeze(['demo']) }),
+  Object.freeze({
+    classId: 'class_fixture', projectId: 'project_fixture', service: 'notes',
+    subjectId: 'learner_fixture', deviceId: 'aaaaaaaaaaaaaaaa', noteIds: Object.freeze(['demo']),
+  }),
 ]);
+// 쿼리가 붙은 요청은 정확한 경로가 아니다. 엔진은 쿼리 원문 대신 길이와 지문만 주므로 빈 쿼리만 받는다.
+const EMPTY_QUERY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const ROUTE = /^(GET|POST|PUT|DELETE) (?:\/api)?(\/(?:notes|notices)(?:\/:id)?)$/u;
 const ID_SEGMENT = /^[A-Za-z0-9_-]{1,64}$/u;
 const RESERVED_IDS = new Set(['export', 'import', 'all', 'list', 'search', 'download', 'upload', 'bulk', 'backup', 'admin', 'new']);
@@ -61,6 +66,7 @@ function isCompositeAnomaly(request) {
 function readZone(request) {
   const route = typeof request.route === 'string' ? ROUTE.exec(request.route) : null;
   if (!route || route[1] !== request.method || typeof request.path !== 'string') return null;
+  if (request.queryLength !== 0 || request.querySha256 !== EMPTY_QUERY_SHA256) return null;
   const shape = route[2];
   const path = request.path.replace(/^\/api(?=\/)/u, '');
   const resource = shape.startsWith('/notices') ? 'notice' : 'note';
@@ -73,7 +79,8 @@ function readZone(request) {
 }
 
 function ownsNote(request, zone) {
-  const owner = NOTE_OWNERS.find(entry => entry.subjectId === request.subjectId && entry.deviceId === request.deviceId);
+  const owner = NOTE_OWNERS.find(entry => entry.classId === request.classId && entry.projectId === request.projectId
+    && entry.service === request.service && entry.subjectId === request.subjectId && entry.deviceId === request.deviceId);
   if (!owner) return false;
   return !zone.item || owner.noteIds.includes(zone.id);
 }

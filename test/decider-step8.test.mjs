@@ -92,10 +92,22 @@ test('method 와 route 가 서로 다르거나 형식이 틀리면 거부', asyn
   }
 });
 
-test('쿼리는 기능을 고르지 못하고 경로 판단은 그대로', async () => {
-  const { normal } = fixtureRequests();
-  const out = await decide({ ...normal, requestId: randomUUID(), queryLength: 12, querySha256: 'b'.repeat(64) });
-  assert.equal(out.decision, 'allow');
+test('쿼리가 붙으면 정확한 경로가 아니므로 자기 메모라도 거부', async () => {
+  for (const patch of [{ queryLength: 12, querySha256: 'b'.repeat(64) }, { queryLength: 0, querySha256: 'b'.repeat(64) },
+    { queryLength: 5 }, { queryLength: undefined }, { querySha256: undefined }]) {
+    const out = await ask('GET', '/notes/:id', '/notes/demo', patch);
+    assert.equal(out.decision, 'deny', JSON.stringify(patch));
+    assert.deepEqual(out.ruleIds, ['unknown_route_deny']);
+  }
+  assert.equal((await ask('GET', '/notices', '/notices', { queryLength: 9, querySha256: 'c'.repeat(64) })).decision, 'deny');
+});
+
+test('다른 반·프로젝트·서비스에서 온 같은 사용자 요청은 자기 메모 구역이 아니다', async () => {
+  for (const patch of [{ classId: 'class_other' }, { projectId: 'project_other' }, { service: 'notices' }]) {
+    const out = await ask('GET', '/notes/:id', '/notes/demo', patch);
+    assert.equal(out.decision, 'deny', JSON.stringify(patch));
+    assert.deepEqual(out.ruleIds, ['own_notes_zone']);
+  }
 });
 
 test('이전 규칙 유지: 미등록 기기는 구역보다 먼저 거부, 복합 이상 사건은 추가 확인', async () => {
