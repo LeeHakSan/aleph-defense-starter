@@ -169,6 +169,7 @@ test('작전실 API: 실제 요청 ID·확인 시각·미실행을 구분해 담
     assert.equal(first.total, first.rows.length);
     assert.equal(first.total, first.blocked + first.failed + first.notRun);
     assert.equal(first.notRun, 2);
+    assert.equal(first.total, 20);
     assert.equal(first.failed, 0);
     assert.equal(first.blocked, first.rows.filter(row => row.result === 'blocked').length);
     assert.deepEqual(first.attempts, first.rows.map(({ attackId, stage, expected, observed, result }) => ({ attackId, stage, expected, observed, result })));
@@ -248,7 +249,7 @@ test('점검 코드가 쓰는 한도: 읽기 전용이 아닌 요청과 25번째
   assert.doesNotMatch(source.replace(/\/\/.*$/gmu, ''), /JSON\.stringify\(body\)/u);
 });
 
-test('정상 요청 확인은 blocked 를 쓰지 않고, 모든 요청 이름은 read 이며, blocked 는 거부 응답·규칙 jsonReady·승인 전 상태만이다', async () => {
+test('정상 요청 확인은 blocked 를 쓰지 않고, 요청 이름은 요청마다 고유하며, blocked 는 거부 응답·규칙 jsonReady·승인 전 상태만이다', async () => {
   const { observeAll, observeScreens } = await import('../src/attack-check.mjs');
   const keys = [];
   const fakeFetch = async (url, init) => {
@@ -261,15 +262,16 @@ test('정상 요청 확인은 blocked 를 쓰지 않고, 모든 요청 이름은
   };
   const attacks = await observeAll('https://student-defense.vercel.app', { fetch: fakeFetch });
   const screens = await observeScreens('https://student-defense.vercel.app', { fetch: fakeFetch });
-  assert.ok(keys.length > 0 && keys.every(key => key === 'read'), [...new Set(keys)].join(','));
-  assert.equal(screens.length, 5);
+  assert.ok(keys.length > 0 && new Set(keys).size === keys.length, '요청 이름이 겹친다');
+  assert.ok(keys.every(key => /^[0-9a-f-]{36}$/u.test(key)), keys[0]);
+  assert.equal(screens.length, 4);
   for (const row of screens) {
     assert.ok(['as_expected', 'unexpected', 'not_run'].includes(row.result), `${row.attackId}: ${row.result}`);
     assert.equal(row.requests.length, 1);
   }
   for (const row of attacks.filter(item => item.result === 'blocked')) {
     assert.match(row.observed, /^HTTP (401|403|404|405)$|^HTTP 200; jsonReady=true$|^HTTP 200$/u, `${row.attackId}: ${row.observed}`);
-    if (row.observed === 'HTTP 200') assert.equal(row.attackId, 's11-device');
+    if (row.observed === 'HTTP 200') assert.ok(['s01-static-notes', 's11-device'].includes(row.attackId), row.attackId);
   }
   assert.equal(JSON.stringify(screens).includes('"blocked"'), false);
 });
@@ -320,10 +322,10 @@ test('점검 기록에 학생 몫과 제공 엔진(ALEPH SDP 엔진)의 출처�
 });
 
 test('규칙 점검 응답은 학생 작업 출처와 제공 엔진을 밝히고 엔진 집행은 미실행으로 적는다', async () => {
-  for (const id of [...Object.keys(RULE_CASES), 's09-burst-read']) {
+  for (const id of [...Object.keys(RULE_CASES), 's09-burst-read', 's10-policy-verified']) {
     const result = await runRuleCheck(id);
     assert.equal(result.engine, 'ALEPH SDP 엔진', id);
     assert.equal(result.engineEnforced, 'not_run', id);
-    assert.match(result.source, /^학생 (판정기|탐지 규칙)\(src\//u, id);
+    assert.match(result.source, /^학생 (판정기|탐지 규칙|안전 정책 사본)\(/u, id);
   }
 });

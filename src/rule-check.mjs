@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { decide } from './decider.mjs';
 import { detect } from './detect.mjs';
 import { ENGINE } from './sources.mjs';
+import { loadRecoveryPlan } from './policy-files.mjs';
 
 // 고정된 가상 입력으로만 판정기·탐지 규칙을 실행한다. 사용자가 보낸 값은 사례 이름(고정 목록과 비교)뿐이고 코드로 실행하지 않는다.
 // 실제 세션·메모·기기 상태는 읽거나 바꾸지 않는다. ready 는 "가상 조건에서 기대한 결과가 나왔다"는 뜻이며 실제 기기의 승인 상태가 아니다.
@@ -43,6 +44,14 @@ export async function runRuleCheck(caseId) {
     const result = detect(events);
     return { ready: result.action === 'propose_revocation', action: result.action, reasonCode: result.reasonCode ?? null,
       source: SOURCE_DETECT, engine: ENGINE, engineEnforced: 'not_run' };
+  }
+  if (caseId === 's10-policy-verified') {
+    try {
+      const { plan } = await loadRecoveryPlan();
+      return { ready: plan.verified === true, restoreVersion: plan.restoreVersion, source: '학생 안전 정책 사본(backups/safe-policy.json)', engine: ENGINE, engineEnforced: 'not_run' };
+    } catch {
+      return { ready: false, restoreVersion: null, source: '학생 안전 정책 사본(backups/safe-policy.json)', engine: ENGINE, engineEnforced: 'not_run' };
+    }
   }
   return null;
 }

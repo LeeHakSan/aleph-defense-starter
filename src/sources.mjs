@@ -7,7 +7,7 @@ export const SOURCES = Object.freeze({
     label: '학생이 만든 것',
     parts: Object.freeze([
       '판정기(src/decider.mjs)', '탐지 규칙(src/detect.mjs)', '접속 앱(public/)',
-      '자료실(api/, supabase/)', '점검 코드(src/attack-check.mjs, src/rule-check.mjs)',
+      '자료실(api/, supabase/)', '점검 코드(src/attack-check.mjs, src/rule-check.mjs)', '작전실(public/operations.html, api/checks)',
     ]),
   }),
   engine: Object.freeze({

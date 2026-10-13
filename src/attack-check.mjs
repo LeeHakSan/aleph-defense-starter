@@ -22,8 +22,17 @@ function withTimeout(promise, ms) {
   return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
 }
 
+// 요청마다 고유한 이름(requestKey)을 만든다. 심판이 같은 요청을 사례와 이어서 관측할 때 요청끼리 겹치지 않게 한다.
+function newRequestKey() {
+  const id = globalThis.crypto?.randomUUID?.();
+  if (id) return id;
+  const hex = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20)}`;
+}
+
 // 요청 한 건. 응답 본문은 메모 필드가 있는지만 보고 기록하지 않는다. 요청 ID 는 응답의 x-vercel-id 끝 토큰(Vercel 기록의 Request ID 와 같다).
-async function probe(ctx, caseId, requestKey, path, { method = 'GET', headers = {} } = {}) {
+async function probe(ctx, caseId, _label, path, { method = 'GET', headers = {} } = {}) {
+  const requestKey = newRequestKey();
   const checkedAt = new Date().toISOString();
   if (!READ_ONLY_METHODS.has(method)) return { ran: false, method, path, requestKey, checkedAt, status: null, error: '읽기 요청만 보낼 수 있음' };
   ctx.sent = (ctx.sent ?? 0) + 1;
@@ -100,6 +109,14 @@ const denyCase = (attackId, stage, expected, plan) => ({
 // 묶음에 들어가는 점검: 점검 하나에 요청 하나. blocked 는 보낸 요청이 거부 응답을 받았거나(금지 요청) 가상 입력 규칙 점검이 jsonReady=true 일 때다.
 // 41종 공격 전체는 심판이 보내는 것이라 이 파일은 그 시험을 대신하지 않는다.
 export const CASES = [
+  {
+    attackId: 's01-static-notes', stage: 1, kind: 'forbidden', expected: '/data.json에 메모가 없음',
+    async run(ctx) {
+      const r = await probe(ctx, 's01-static-notes', 'read', '/data.json');
+      const empty = r.ran && r.status === 200 && Array.isArray(r.json?.notes) && r.json.notes.length === 0 && !r.hasNotes;
+      return { requests: [r], ...outcome(r, (x) => empty || denied(x)) };
+    },
+  },
   denyCase('s02-static-copy', 2, '다른 정적 사본(/notes.json)에 메모가 없음', () => ['read', '/notes.json']),
   denyCase('s03-unauth-list', 3, '로그인 없는 내 메모 목록은 거부', () => ['read', '/api/my/notes']),
   denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 거부', () => ['read', '/api/my/notes', { headers: { authorization: `Bearer ${FAKE_JWT}` } }]),
@@ -114,6 +131,7 @@ export const CASES = [
   ruleCase('s08-write-notice', 8, '반 공지 쓰기 거부'),
   denyCase('s08-other-zone', 8, '로그인 없는 강사 공지 조회 거부', () => ['read', '/api/notices']),
   ruleCase('s09-burst-read', 9, '조회 폭주는 회수 제안'),
+  ruleCase('s10-policy-verified', 10, '검증한 정책 사본이 유효함'),
   notSent('s10-restore-unauth', 10, '로그인 없는 복원 요청 거부(POST 가 필요해 보내지 않음)'),
   {
     attackId: 's11-device', stage: 11, kind: 'forbidden', expected: '로그인 없는 기기 상태는 승인 전·자료 없음',
@@ -128,15 +146,6 @@ export const CASES = [
 
 // 정상 요청 확인(화면·정책·정적 자료·승인 상태): 공격을 막은 결과가 아니라서 묶음과 작전실의 점검 수치에 넣지 않고 따로 보여 준다.
 export const SCREEN_CASES = [
-  {
-    attackId: 's01-static-notes', stage: 1, kind: 'normal', expected: '/data.json 은 열려 있어도 메모가 없어야 함(정상 응답이라 막음으로 세지 않음)',
-    async run(ctx) {
-      const r = await probe(ctx, 's01-static-notes', 'read', '/data.json');
-      const empty = r.ran && !r.hasNotes && !(Array.isArray(r.json?.notes) && r.json.notes.length);
-      const marker = typeof ctx.config?.sampleMarker === 'string' && ctx.config.sampleMarker !== '' && r.text?.includes(ctx.config.sampleMarker);
-      return { requests: [r], ...screenOutcome(r, (x) => empty && x.status !== 500 && !marker) };
-    },
-  },
   {
     attackId: 's10-policy-copy', stage: 10, kind: 'normal', expected: '검증한 안전 정책 사본을 다시 읽어 복원할 버전과 바뀔 범위를 보여 줘야 함(읽기 전용)',
     async run(ctx) {

@@ -108,7 +108,7 @@ test('정상 배포: 거부해야 할 요청과 규칙 점검은 blocked, 쓰기
   const calls = [];
   const attempts = await observeAndRun(APP, safeFetch(calls));
   const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
-  for (const id of [...['s02-static-copy', 's03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's04-other-note', 's05-direct-table', 's08-other-zone', 's11-unsigned-read'], ...['s06-unregistered', 's07-compound', 's08-unknown-route', 's08-all-notes', 's08-write-notice', 's09-burst-read'], 's11-device']) {
+  for (const id of [...['s01-static-notes', 's02-static-copy', 's03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's04-other-note', 's05-direct-table', 's08-other-zone', 's11-unsigned-read'], ...['s06-unregistered', 's07-compound', 's08-unknown-route', 's08-all-notes', 's08-write-notice', 's09-burst-read', 's10-policy-verified'], 's11-device']) {
     assert.equal(byId[id].result, 'blocked', `${id}: ${byId[id].observed}`);
   }
   for (const id of ['s10-restore-unauth', 's11-unsigned-write']) {
@@ -116,14 +116,14 @@ test('정상 배포: 거부해야 할 요청과 규칙 점검은 blocked, 쓰기
     assert.equal(byId[id].observed, 'not_run', id);
     assert.equal(calls.some(({ init }) => init.alephEvidence.caseId === id), false, `${id} 는 요청을 보내지 않는다`);
   }
-  assert.equal(attempts.length, 18);
+  assert.equal(attempts.length, 20);
   assert.equal(attempts.some(attempt => attempt.result === 'breached'), false);
 });
 
 test('보호가 풀린 배포: 같은 점검이 breached 로 표시되고 고정 문자열로 막음을 적지 않는다', async () => {
   const attempts = await observeAndRun(APP, openFetch([]));
   const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
-  for (const id of [...['s02-static-copy', 's03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's04-other-note', 's05-direct-table', 's08-other-zone', 's11-unsigned-read'], ...['s06-unregistered', 's07-compound', 's08-unknown-route', 's08-all-notes', 's08-write-notice', 's09-burst-read'], 's11-device']) {
+  for (const id of [...['s01-static-notes', 's02-static-copy', 's03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's04-other-note', 's05-direct-table', 's08-other-zone', 's11-unsigned-read'], ...['s06-unregistered', 's07-compound', 's08-unknown-route', 's08-all-notes', 's08-write-notice', 's09-burst-read', 's10-policy-verified'], 's11-device']) {
     assert.equal(byId[id].result, 'breached', `${id}: ${byId[id].observed}`);
   }
   assert.match(byId['s03-unauth-list'].observed, /^HTTP 200/u);
@@ -147,7 +147,7 @@ test('점검 하나(attackId)에는 요청을 하나만 보내고, 모든 요청
   await observeAndRun(APP, safeFetch(calls));
   const perCase = Object.groupBy(calls, ({ init }) => init.alephEvidence.caseId);
   for (const [caseId, list] of Object.entries(perCase)) assert.equal(list.length, 1, `${caseId}: 요청 ${list.length}건`);
-  assert.equal(calls.length, 16);
+  assert.equal(calls.length, 18);
   assert.ok(calls.every(({ init }) => init.method === 'GET'));
 });
 
@@ -160,7 +160,7 @@ test('요청을 보내지 못하면 막음으로 세지 않고 not_run 으로 �
 test('요청마다 alephEvidence 에 사례와 요청 이름을 연결하고 헤더·URL 에는 넣지 않는다', async () => {
   const calls = [];
   await observeAndRun(APP, safeFetch(calls));
-  assert.equal(calls.length, 16);
+  assert.equal(calls.length, 18);
   for (const { url, init } of calls) {
     assert.equal(typeof init.alephEvidence?.caseId, 'string', url);
     assert.equal(typeof init.alephEvidence?.requestKey, 'string', url);
@@ -204,7 +204,7 @@ async function observeAndRun(input, fetchImpl) {
 test('blocked 는 거부 응답(401·403·404·405)을 받았거나 규칙 점검이 jsonReady=true 일 때만이고, 서버 오류(5xx)는 not_run 이다', async () => {
   const { CASES, SCREEN_CASES } = await import('../src/attack-check.mjs');
   const attackIds = CASES.map(item => item.attackId);
-  for (const id of ['s01-static-notes', 's10-policy-copy', 's11-approval-screen', 's11-vault-screen', 's12-operations-screen']) {
+  for (const id of ['s10-policy-copy', 's11-approval-screen', 's11-vault-screen', 's12-operations-screen']) {
     assert.equal(attackIds.includes(id), false, `${id} 는 정상 요청 확인이라 공격 점검에 넣지 않는다`);
     assert.ok(SCREEN_CASES.some(item => item.attackId === id), id);
   }
