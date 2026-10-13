@@ -1,0 +1,74 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "persistence",
+  "source": "MITRE ATT&CK T1543 (Create or Modify System Process), T1053 (Scheduled Task/Job), 시작 폴더는 T1547.001",
+  "minRepeats": 3,
+  "patterns": [
+    {
+      "name": "unsigned_new_service",
+      "technique": "T1543",
+      "condition": "서명이 없는 새 서비스 등록이나, 서명이 없는 채로 서비스 실행 파일이 바뀐 경보",
+      "basis": "MITRE ATT&CK T1543.003: 공격자는 다시 켜도 살아남도록 서명 없는 새 Windows 서비스를 만들거나 기존 서비스의 실행 파일을 바꾼다."
+    },
+    {
+      "name": "unknown_scheduled_task",
+      "technique": "T1053",
+      "condition": "처음 보는 예약 작업이거나 이름이 임의 문자열인 예약 작업",
+      "basis": "MITRE ATT&CK T1053.005: 공격자는 평소 목록에 없는 예약 작업을 만들어 정해진 때마다 자기 프로그램을 다시 실행한다."
+    },
+    {
+      "name": "startup_folder_added",
+      "technique": "T1547.001",
+      "condition": "시작 폴더에 새 프로그램이 추가됨",
+      "basis": "MITRE ATT&CK T1547.001: 시작 폴더에 파일을 넣어 두면 로그인할 때마다 실행되므로 지속성 확보에 쓰인다."
+    },
+    {
+      "name": "not_in_baseline_item",
+      "technique": "T1543",
+      "condition": "평소 목록(기준 목록)에 없는 서비스·시작 항목",
+      "basis": "MITRE ATT&CK T1543, T1053: 심어 둔 지속 장치는 평소 목록과 비교하면 새 항목으로 드러난다."
+    },
+    {
+      "name": "combined_mechanisms",
+      "technique": "T1543",
+      "condition": "한 경보가 서비스·시작 프로그램·예약 작업 가운데 둘 이상을 함께 가리킴 (T1543 과 T1053 이 함께 붙음)",
+      "basis": "MITRE ATT&CK T1543, T1053: 공격자는 하나가 지워져도 남도록 여러 방법을 함께 심는 경우가 많다."
+    },
+    {
+      "name": "remain_after_reboot",
+      "technique": "T1543",
+      "condition": "다시 켜도 남도록 등록됐다는 경보",
+      "basis": "MITRE ATT&CK T1543.003: 자동 시작으로 등록된 서비스는 재부팅 뒤에도 다시 실행되어 지속성의 핵심이 된다."
+    },
+    {
+      "name": "temp_folder_payload",
+      "technique": "T1543",
+      "condition": "실행 파일이 사용자 임시 폴더(Temp)에 있음 (서비스·작업 등록과 함께일 때 강한 근거, 파일만 있을 때는 알림에 그침)",
+      "basis": "MITRE ATT&CK T1543.003, T1053.005: 정상 설치 경로가 아닌 임시 폴더의 실행 파일을 서비스나 작업으로 등록하는 것은 악성 지속성 설치의 흔한 형태다."
+    },
+    {
+      "name": "random_task_name",
+      "technique": "T1053",
+      "condition": "작업 이름이나 실행 파일 이름이 임의 문자열처럼 보임 (예: 16진수 문자열)",
+      "basis": "MITRE ATT&CK T1053.005: 공격 도구는 눈에 띄지 않도록 예약 작업과 파일 이름을 임의 문자열로 만들기도 한다."
+    },
+    {
+      "name": "repeat_registration",
+      "technique": "T1543",
+      "condition": "서명 없는 서비스 등록이 minRepeats(3)건 이상 연속됨 (data.count >= 3)",
+      "basis": "MITRE ATT&CK T1543.003: 자동화된 설치 도구는 서비스 등록을 짧은 시간에 여러 번 반복한다."
+    },
+    {
+      "name": "unsigned_unverified",
+      "technique": "T1543",
+      "condition": "서명을 아직 확인하지 못했거나 모른다는 경보 (알림에 그치며 막지 않음)",
+      "basis": "MITRE ATT&CK T1543, T1053: 서명이 없다고 확인된 것이 아니라 확인하지 못한 항목은 정상 도구일 수 있어 사람이 보게 알리기만 한다."
+    },
+    {
+      "name": "tagged_without_signal",
+      "technique": "T1053",
+      "condition": "T1543·T1053 경보이지만 위 패턴이 없음 (알림에 그치며 막지 않음)",
+      "basis": "MITRE ATT&CK T1543, T1053: 기법 표지가 붙었어도 지속 장치가 실제로 등록된 근거가 없으면 알려서 사람이 확인하게 한다."
+    }
+  ]
+}

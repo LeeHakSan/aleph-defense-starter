@@ -233,6 +233,77 @@
         "kc-08"
       ],
       "reason": "jndi_lookup_in_url+jndi_lookup_in_header+lookup_in_both_header_and_url · CVE-2021-44228 (T1190, 수준 10)"
+    },
+    {
+      "id": "xdr.persistence.203.0.113.12",
+      "decision": "deny",
+      "srcip": "203.0.113.12",
+      "expiresAt": "2026-09-27T01:19:12.000Z",
+      "alertIds": [
+        "ps-01",
+        "ps-02"
+      ],
+      "reason": "unsigned_new_service+temp_folder_payload · T1543/T1053 (수준 12)"
+    },
+    {
+      "id": "xdr.persistence.198.51.100.12",
+      "decision": "deny",
+      "srcip": "198.51.100.12",
+      "expiresAt": "2026-09-27T02:06:28.000Z",
+      "alertIds": [
+        "ps-03"
+      ],
+      "reason": "startup_folder_added+not_in_baseline_item · T1543/T1053 (수준 11)"
+    },
+    {
+      "id": "xdr.persistence.192.0.2.12",
+      "decision": "deny",
+      "srcip": "192.0.2.12",
+      "expiresAt": "2026-09-27T02:22:03.000Z",
+      "alertIds": [
+        "ps-04"
+      ],
+      "reason": "unsigned_new_service+repeat_registration · T1543/T1053 (수준 12)"
+    },
+    {
+      "id": "xdr.persistence.203.0.113.19",
+      "decision": "deny",
+      "srcip": "203.0.113.19",
+      "expiresAt": "2026-09-27T03:09:17.000Z",
+      "alertIds": [
+        "ps-05"
+      ],
+      "reason": "unknown_scheduled_task+temp_folder_payload+random_task_name · T1543/T1053 (수준 10)"
+    },
+    {
+      "id": "xdr.persistence.198.51.100.19",
+      "decision": "deny",
+      "srcip": "198.51.100.19",
+      "expiresAt": "2026-09-27T05:07:45.000Z",
+      "alertIds": [
+        "ps-06"
+      ],
+      "reason": "unsigned_new_service+temp_folder_payload · T1543/T1053 (수준 12)"
+    },
+    {
+      "id": "xdr.persistence.192.0.2.19",
+      "decision": "deny",
+      "srcip": "192.0.2.19",
+      "expiresAt": "2026-09-27T06:14:08.000Z",
+      "alertIds": [
+        "ps-07"
+      ],
+      "reason": "combined_mechanisms+temp_folder_payload · T1543/T1053 (수준 11)"
+    },
+    {
+      "id": "xdr.persistence.203.0.113.33",
+      "decision": "deny",
+      "srcip": "203.0.113.33",
+      "expiresAt": "2026-09-27T07:28:31.000Z",
+      "alertIds": [
+        "ps-08"
+      ],
+      "reason": "not_in_baseline_item+remain_after_reboot+temp_folder_payload · T1543/T1053 (수준 12)"
     }
   ]
 }
