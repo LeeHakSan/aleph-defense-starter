@@ -43,7 +43,13 @@ export async function authenticate(request, response) {
     fail(response, 401, 'LOGIN_REQUIRED');
     return null;
   }
-  return { userId: login.userId.toLowerCase(), db: database };
+  return { userId: login.userId.toLowerCase(), db: database, kind: login.kind };
+}
+
+// 거부할 때는 자원 ID 와 짧은 사유만 로그에 남긴다. 토큰·사용자 ID·메모 본문은 남기지 않는다.
+export function forbid(response, resource, reason) {
+  console.warn(JSON.stringify({ event: 'access_denied', resource, reason }));
+  return response.status(403).json({ error: 'FORBIDDEN', reason });
 }
 
 export function parseId(value) {

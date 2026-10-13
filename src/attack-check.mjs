@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (config.step !== 7) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (config.step !== 8) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
     app = new URL(config.publicAppUrl);
@@ -27,6 +27,9 @@ export async function runAttackChecks(config) {
   const itemGet = await send(app, 'GET', `/api/notes/${missingId}`);
   const itemPut = await send(app, 'PUT', `/api/notes/${missingId}`, { body: { title: '점검' } });
   const itemDelete = await send(app, 'DELETE', `/api/notes/${missingId}`);
+  const noticeList = await send(app, 'GET', '/api/notices');
+  const noticeGet = await send(app, 'GET', `/api/notices/${missingId}`);
+  const noticePut = await send(app, 'PUT', `/api/notices/${missingId}`, { body: { title: '점검' } });
   const forged = await send(app, 'GET', '/api/notes', { token: forgedToken(issuer, {}) });
   const expired = await send(app, 'GET', '/api/notes',
     { token: forgedToken(issuer, { iat: now - 7200, exp: now - 3600 }) });
@@ -97,6 +100,21 @@ export async function runAttackChecks(config) {
       attackId: 'api_notes_wrong_audience_token',
       expected: '다른 서비스용(대상이 다른) 로그인 토큰은 401로 거부되어야 함 (이 점검의 토큰은 서명도 틀림)',
       observed: verdict(otherService),
+    },
+    {
+      attackId: 'api_notices_no_token',
+      expected: '로그인 토큰 없이 강사 공지 목록·한 건을 요청하면 401로 거부되어야 함',
+      observed: `목록: ${verdict(noticeList)} · 한 건: ${verdict(noticeGet)}`,
+    },
+    {
+      attackId: 'api_notice_write_no_token',
+      expected: '로그인 토큰 없이 강사 공지를 수정하면 401로 거부되어야 함 (없는 id로 보내 실제 공지는 바뀌지 않음)',
+      observed: verdict(noticePut),
+    },
+    {
+      attackId: 'api_notice_student_write',
+      expected: '로그인한 일반 학생이 강사 공지를 수정하면 403으로 거부되고 공지는 그대로여야 함 (본문에 role을 넣어도 마찬가지)',
+      observed: '미실행 — 자동 점검에는 시험 계정 로그인 정보가 없어 보내지 않음',
     },
     {
       attackId: 'aleph_json_allowed_routes',

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { resourceId } from '../src/access.mjs';
 import {
   authenticate, fail, NOTE_COLUMNS, parseId, readJsonObject, readNoteFields, toNote,
 } from '../src/notes-common.mjs';
@@ -9,6 +10,7 @@ export default async function handler(request, response) {
   const { userId, db } = session;
 
   if (request.method === 'GET') {
+    response.setHeader('X-Resource-Id', resourceId('note'));
     const { data, error } = await db
       .from('notes')
       .select(NOTE_COLUMNS)
@@ -23,6 +25,7 @@ export default async function handler(request, response) {
     const fields = input && readNoteFields(input, { requireTitle: true });
     const id = input && (input.id == null || input.id === '' ? randomUUID() : parseId(input.id));
     if (!fields || !id) return fail(response, 400, 'INVALID_NOTE');
+    response.setHeader('X-Resource-Id', resourceId('note', id));
 
     const { error } = await db.from('notes').insert({
       id,

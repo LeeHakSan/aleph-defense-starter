@@ -18,7 +18,7 @@
 
 로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. 저장소의 `src/attack-check.mjs`는 `npm run bundle`이 실행하는 자기 점검으로, 실제 배포 주소에 로그인 없는 요청·위조 토큰 요청·공개용 `anon` 키 직접 요청을 보내 결과만 기록합니다.
 
-## 현재 작동하는 기능 (7단계)
+## 현재 작동하는 기능 (8단계)
 
 - `/`: 이메일·비밀번호 로그인과 로그아웃. 로그인하면 본인 계정으로 가상 메모를 추가·수정·삭제하는 화면이 보입니다. 화면은 서버 함수(`/api/*`)만 부르고, 화면 코드에는 Supabase 주소·공개 키·외부 라이브러리가 없습니다.
 - `POST /api/auth/login`·`/refresh`·`/logout`: 서버가 Supabase Auth를 공개 키(서버 환경 변수 `SUPABASE_PUBLISHABLE_KEY`)로 대신 부르고, 화면에는 로그인 토큰·갱신 토큰·만료 시각·사용자 ID·이메일만 돌려줍니다. 틀린 정보는 401(`LOGIN_FAILED`), 공개 키 설정 문제는 503(`AUTH_MISCONFIGURED`)입니다. 화면은 토큰이 만료되면 알아서 갱신하고, 갱신이 안 되면 로그아웃 상태로 돌아갑니다.
@@ -28,7 +28,12 @@
 - DB 권한: `public.notes`는 RLS가 켜져 있고 `anon`·`authenticated`의 직접 권한을 모두 회수했습니다(`supabase/step4-rls.sql`, `supabase/step5-revoke-direct.sql`). 정책 4개(`auth.uid() = owner_id`)는 권한이 다시 열릴 때를 대비한 안전장치로 남겼습니다. 메모는 서버 함수가 서버 전용 키로만 읽고 쓰며, 원본 자료 주소는 `aleph.config.json`의 `originalApiUrl`에 적었습니다. 기존 샘플 메모 4건은 시험 계정 A 소유로 연결했고, 시험 계정 B 소유의 시험 메모가 1건 있습니다.
 - 판정기(`src/decider.mjs`): `device_registered` 규칙 추가. 엔진이 확인한 `deviceRegistered`가 `true`면 허용(`approved`), `false`이거나 값이 없으면 거부(`device_not_registered`)합니다.
 - 판정기 `step_up_required` 규칙(7단계): 엔진이 `signals.source: "judge_fixture"`로 표시한 가상 접속 사건에서 **평소와 다른 시각(0~5시·23시) + 처음 보는 네트워크(`unusual`) + 최근 300초 안 위험 사건(`risk_signal`) 합계 10건 이상**이 모두 맞을 때만 `step_up`(`step_up_required`)을 돌려줍니다. 엔진이 확인한 `stepUp`(`verified: true`, 나이 0~900초)이 있으면 같은 사건도 허용합니다. 지역(`region`)은 단독 근거로도 차단 근거로도 쓰지 않습니다. 출처가 `none`이거나 값이 없거나 형식이 틀리면 근거로 쓰지 않고 정상값으로 채우지도 않으며, 요청의 정해진 항목 밖 값(헤더·`geo`·`role` 등)은 읽지 않습니다. 기기 규칙이 먼저 적용됩니다.
-- 한계(미실행): 이 저장소의 `/api/*` 서버 함수는 아직 판정기를 부르지 않습니다. 다시 로그인 전 실제 자료 차단과 새 로그인 뒤 허용은 제공 엔진이 새 로그인 시각을 검증하는 환경에서만 시험할 수 있어 **실측하지 않았습니다**. 여기서는 가상 요청으로 규칙만 시험했습니다.
+- 자료 구역과 자원 ID(8단계): 자료는 두 구역으로 나뉩니다. 메모는 `note:<id>`, 강사 공지는 `notice:<id>`(목록은 `note:*`·`notice:*`)이며, 서버가 요청마다 만들어 응답 헤더 `X-Resource-Id`에 싣습니다. 기존 메모 주소와 화면은 그대로입니다.
+- 강사 공지 API: `GET /api/notices`, `GET /api/notices/:id`는 로그인한 사용자 모두, `PUT /api/notices/:id`는 `public.instructors` 표에 **저장된** 사용자만 가능합니다. 요청 본문의 `role`·`owner_id`, 화면 메뉴, 토큰의 role 은 읽지 않으며, 심판 접속(`judge`)은 강사가 아닙니다. 권한이 없으면 공지가 있는지 알려 주기 전에 403(`not_instructor`)이고, 권한 조회가 실패하면 수정하지 않고 502입니다. 처음에는 강사가 한 명도 없어서 아무도 공지를 수정할 수 없습니다.
+- 자기 메모 API: 메모 한 건 조회·수정·삭제는 저장된 `owner_id`가 확인된 사용자와 같을 때만 열립니다. 다른 사람·주인 없는 메모는 403(`not_owner`), 소유자 바꾸기는 403(`owner_change`)입니다. 거부할 때는 자원 ID와 사유만 서버 로그에 남기고 토큰·사용자 ID·메모 본문은 남기지 않습니다.
+- 판정기 구역 규칙(8단계): 엔진이 확인한 `method`·`route`·`path`가 정확히 맞는 경로만 엽니다. 자기 메모 구역(`own_notes_zone`)은 `GET·POST /notes`, `GET·PUT·DELETE /notes/:id`, 강사 공지 읽기(`class_notices_read_zone`)는 `GET /notices`, `GET /notices/:id`입니다. 공지 쓰기는 `notice_write_instructor_only`로 거부하고, 그 밖의 경로·모양 불일치·`export` 같은 기능 이름은 `unknown_route_deny`로 거부합니다(이유 코드 `zone_not_allowed`). 쿼리는 읽지 않고 자료 ID 칸으로만 자료를 고릅니다. 판정 요청 계약에는 자료 소유자와 강사 역할이 없으므로(`request.role` 금지) 판정기는 구역만 가르고, 소유자·강사 권한은 API가 저장된 값으로 다시 확인합니다.
+- DB(8단계): `public.notices`(가상 공지 1건)와 `public.instructors`(비어 있음)를 `supabase/step8-notices.sql`로 만들었습니다. 둘 다 RLS가 켜져 있고 `anon`·`authenticated` 권한이 없으며 `service_role`만 읽고 씁니다.
+- 한계(미실행): 이 저장소의 `/api/*` 서버 함수는 아직 판정기를 부르지 않습니다. 8단계의 구역 규칙도 가상 요청으로만 시험했고, 로그인한 두 계정으로 배포 주소에서 남의 메모·공지 수정을 직접 보내 본 실측은 하지 않았습니다(시험 계정 로그인 정보가 없는 자동 점검은 `미실행`으로 남깁니다). 다시 로그인 전 실제 자료 차단과 새 로그인 뒤 허용은 제공 엔진이 새 로그인 시각을 검증하는 환경에서만 시험할 수 있어 **실측하지 않았습니다**. 여기서는 가상 요청으로 규칙만 시험했습니다.
 
 ### 다시 실행하는 방법
 
@@ -36,13 +41,14 @@
 2. Supabase 대시보드의 Authentication → Users에서 시험 계정 A·B를 만들고(Auto Confirm User 체크), 배포 주소에서 각각 로그인해 메모를 추가·수정·삭제합니다. A로 만든 메모는 B 화면에 보이지 않아야 합니다.
 3. 거부 확인: `curl -i https://VERCEL_APP_URL/api/notes` → 401과 `{"error":"LOGIN_REQUIRED"}`
    로그인 경로 확인: `curl -i -X POST https://VERCEL_APP_URL/api/auth/login -H 'content-type: application/json' -d '{}'` → 400과 `INVALID_LOGIN`
-4. DB 규칙: `supabase/step4-rls.sql`, `supabase/step5-revoke-direct.sql` 순서로 Supabase SQL Editor에서 실행합니다. 샘플 메모의 소유자는 `owner_id`가 비어 있는 행을 시험 계정 A의 ID로 바꾸는 UPDATE로 연결했습니다. 적용 뒤 공개 키로 `/rest/v1/notes`를 직접 부르면 `permission denied`(HTTP 401)가 나와야 합니다.
+4. DB 규칙: `supabase/step4-rls.sql`, `supabase/step5-revoke-direct.sql`, `supabase/step8-notices.sql` 순서로 Supabase SQL Editor에서 실행합니다. 샘플 메모의 소유자는 `owner_id`가 비어 있는 행을 시험 계정 A의 ID로 바꾸는 UPDATE로 연결했습니다. 적용 뒤 공개 키로 `/rest/v1/notes`를 직접 부르면 `permission denied`(HTTP 401)가 나와야 합니다.
 5. 판정기 확인: `npm run decider:test`를 실행합니다.
    - `통과 · 등록 기기의 정상 요청` — `deviceRegistered: true` 요청이 `allow`·`approved`로 나와야 합니다.
    - `통과 · 미등록 기기의 가상 요청` — `deviceRegistered: false` 요청이 `deny`·`device_not_registered`로 나와야 합니다.
    - 마지막 줄 "이 명령은 가상 요청으로 연습하며 심판 통과 증거가 아닙니다."가 보여야 합니다.
 6. 7단계 확인: `npm run fixture:7`은 `정상 사건: allow`, `복합 이상 사건: step_up`을 보여 주고, `npm run decider:test`는 4건 모두 `통과`여야 합니다. 세부 경우(지역만 낯선 요청, 출처 불명, 확인 시각 만료 등)는 `node --test test/decider-step7.test.mjs`로 봅니다. 모두 가상 요청 연습이며 심판 판정이 아닙니다.
-7. 제출 묶음: 변경을 모두 커밋한 뒤 `ALEPH_PUBLIC_KEY=<공개 키> npm run bundle`을 실행합니다. 공개 키는 원본 자료 주소를 직접 읽어 보는 점검에만 쓰이고 어디에도 기록되지 않으며, 주지 않으면 그 점검은 "미실행"으로 남습니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
+7. 8단계 확인: `node --test test/decider-step8.test.mjs test/access-step8.test.mjs`는 구역 규칙(자기 메모 허용, 공지 쓰기·알 수 없는 경로 거부)과 API 권한(A 자기 메모 허용, B의 A 메모 403, 일반 학생의 공지 수정 403)을 가짜 DB로 시험합니다. 배포 뒤 `curl -i https://VERCEL_APP_URL/api/notices` → 401과 `{"error":"LOGIN_REQUIRED"}`가 나와야 합니다. 강사를 지정하려면 Supabase SQL Editor에서 `insert into public.instructors (user_id) values ('<사용자 ID>');`를 직접 실행합니다.
+8. 제출 묶음: 변경을 모두 커밋한 뒤 `ALEPH_PUBLIC_KEY=<공개 키> npm run bundle`을 실행합니다. 공개 키는 원본 자료 주소를 직접 읽어 보는 점검에만 쓰이고 어디에도 기록되지 않으며, 주지 않으면 그 점검은 "미실행"으로 남습니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
 
 ## 가상 메모 노출 확인 절차
 
@@ -84,6 +90,7 @@ Vercel 배포 이력에 이전 버전이 남아 있으면 옛 `/data.json`도 �
 | B로 로그인한 화면에서 A의 메모가 보이는가 | 안 보임 (B의 메모 1건만 보임) | 2026-10-07 |
 | B가 A의 메모 id로 조회·수정·삭제·가로채기 (API) | 모두 403, A의 메모는 그대로 | 2026-10-07 |
 | 로그인 토큰으로 DB 직접 접근 (4단계 시점, RLS) | 본인 행만 조회·수정·삭제, 남의 행은 0건, 남의 소유로 INSERT·UPDATE는 `42501` 오류 | 2026-10-07 |
+| 8단계 새 표 권한 (`notices`, `instructors`) | `anon`·`authenticated`·`PUBLIC` 권한 없음, `service_role`만 보유, RLS 켜짐, 공지 1건·강사 0명, 메모 5건 그대로 (`role_table_grants`·`pg_class`로 확인) | 2026-10-13 |
 | 5단계 권한 회수 | `anon`·`authenticated`는 `public.notes` 권한 없음, `service_role`만 보유 (`role_table_grants`·`has_table_privilege`로 확인) | 2026-10-07 |
 | 첫 화면 코드의 키 모양 문자열 | 0개 (HTTP 200), Supabase 주소·외부 라이브러리 없음 | 2026-10-07 |
 | `/aleph.json`의 허용 경로 | 8개 (HTTP 200) | 2026-10-07 |
