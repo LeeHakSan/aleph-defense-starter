@@ -44,18 +44,14 @@ test('같은 사용자라도 표에 없는 기기나 남의 메모 경로는 거
   assert.equal((await ask('GET', '/notes/:id', '/notes/demo', { deviceId: undefined })).decision, 'deny');
 });
 
-test('강사 공지 구역: 읽기는 허용, 수정은 판정기에서 열지 않음', async () => {
-  for (const [route, path] of [['/notices', '/notices'], ['/notices/:id', `/notices/${ID}`]]) {
-    const out = await ask('GET', route, path);
-    assert.equal(out.decision, 'allow');
-    assert.deepEqual(out.ruleIds, ['device_registered', 'class_notices_read_zone']);
-  }
-  for (const [method, route, path] of [['PUT', '/notices/:id', `/notices/${ID}`], ['POST', '/notices', '/notices'],
+test('강사 공지 구역: 판정기는 읽기·쓰기 모두 열지 않는다(다른 구역)', async () => {
+  for (const [method, route, path] of [['GET', '/notices', '/notices'], ['GET', '/notices/:id', `/notices/${ID}`],
+    ['GET', '/notices/:id', '/notices/demo'], ['PUT', '/notices/:id', `/notices/${ID}`], ['POST', '/notices', '/notices'],
     ['DELETE', '/notices/:id', `/notices/${ID}`]]) {
     const out = await ask(method, route, path);
     assert.equal(out.decision, 'deny', `${method} ${path}`);
     assert.equal(out.reasonCode, 'zone_not_allowed');
-    assert.deepEqual(out.ruleIds, ['notice_write_instructor_only']);
+    assert.deepEqual(out.ruleIds, ['notice_zone_instructor_only']);
   }
 });
 
@@ -99,7 +95,6 @@ test('쿼리가 붙으면 정확한 경로가 아니므로 자기 메모라도 �
     assert.equal(out.decision, 'deny', JSON.stringify(patch));
     assert.deepEqual(out.ruleIds, ['unknown_route_deny']);
   }
-  assert.equal((await ask('GET', '/notices', '/notices', { queryLength: 9, querySha256: 'c'.repeat(64) })).decision, 'deny');
 });
 
 test('다른 반·프로젝트·서비스에서 온 같은 사용자 요청은 자기 메모 구역이 아니다', async () => {

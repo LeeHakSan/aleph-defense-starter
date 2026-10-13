@@ -4,14 +4,14 @@ export const RULE_IDS = Object.freeze([
   'device_registered',
   'step_up_required',
   'own_notes_zone',
-  'class_notices_read_zone',
-  'notice_write_instructor_only',
+  'notice_zone_instructor_only',
   'unknown_route_deny',
 ]);
 
 // 구역 규칙(8단계): 엔진이 확인한 사용자(subjectId)·기기(deviceId)·method·정확한 경로가 모두 맞을 때만 연다.
 // 자기 메모 구역은 아래 주인 표에 적힌 사용자·기기와 그 사용자의 정확한 메모 경로만 열린다.
-// 표에 없는 사용자·기기, 남의 메모 경로는 거부한다. 강사 공지 수정은 판정기에서 열지 않는다.
+// 표에 없는 사용자·기기, 남의 메모 경로는 거부한다. 강사 공지 구역은 계약에 강사 역할이 없어 판정기에서 열지 않는다
+// (공지 읽기는 자료 API 가 로그인한 사용자에게, 수정은 저장된 강사에게만 따로 허용한다).
 // 쿼리는 읽지 않고, 기능은 경로의 자료 ID 칸으로만 고른다(export 같은 기능 이름은 자료 ID 로 인정하지 않는다).
 // 지금 표에는 엔진 실습 요청(scripts/fixture-7.mjs)의 가상 사용자·기기만 있다. 실제 사용자는 엔진이 확인한 값으로 추가한다.
 const NOTE_OWNERS = Object.freeze([
@@ -87,9 +87,7 @@ function ownsNote(request, zone) {
 
 function zoneRule(request, zone) {
   if (!zone) return { deny: 'unknown_route_deny' };
-  if (zone.resource === 'notice') {
-    return zone.method === 'GET' ? { allow: 'class_notices_read_zone' } : { deny: 'notice_write_instructor_only' };
-  }
+  if (zone.resource === 'notice') return { deny: 'notice_zone_instructor_only' };
   if (!NOTE_SHAPES[zone.method]?.includes(zone.item)) return { deny: 'unknown_route_deny' };
   return ownsNote(request, zone) ? { allow: 'own_notes_zone' } : { deny: 'own_notes_zone' };
 }
