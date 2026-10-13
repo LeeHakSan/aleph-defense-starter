@@ -4,24 +4,17 @@ export const RULE_IDS = Object.freeze([
   'device_registered',
   'step_up_required',
   'own_notes_zone',
-  'notice_zone_instructor_only',
+  'class_notices_read_zone',
+  'notice_write_instructor_only',
   'unknown_route_deny',
 ]);
 
-// 구역 규칙(8단계): 엔진이 확인한 사용자(subjectId)·기기(deviceId)·method·정확한 경로가 모두 맞을 때만 연다.
-// 자기 메모 구역은 아래 주인 표에 적힌 사용자·기기와 그 사용자의 정확한 메모 경로만 열린다.
-// 표에 없는 사용자·기기, 남의 메모 경로는 거부한다. 강사 공지 구역은 계약에 강사 역할이 없어 판정기에서 열지 않는다
-// (공지 읽기는 자료 API 가 로그인한 사용자에게, 수정은 저장된 강사에게만 따로 허용한다).
-// 쿼리는 읽지 않고, 기능은 경로의 자료 ID 칸으로만 고른다(export 같은 기능 이름은 자료 ID 로 인정하지 않는다).
-// 지금 표에는 엔진 실습 요청(scripts/fixture-7.mjs)의 가상 사용자·기기만 있다. 실제 사용자는 엔진이 확인한 값으로 추가한다.
-const NOTE_OWNERS = Object.freeze([
-  Object.freeze({
-    classId: 'class_fixture', projectId: 'project_fixture', service: 'notes',
-    subjectId: 'learner_fixture', deviceId: 'aaaaaaaaaaaaaaaa', noteIds: Object.freeze(['demo']),
-  }),
-]);
-// 쿼리가 붙은 요청은 정확한 경로가 아니다. 엔진은 쿼리 원문 대신 길이와 지문만 주므로 빈 쿼리만 받는다.
-const EMPTY_QUERY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+// 구역 규칙(8단계): 엔진이 확인한 사용자(subjectId)·method·정확한 경로로 자료 구역을 가른다(기기는 위 기기 규칙이 먼저 본다).
+// 자기 메모 구역은 이 자료실 주인으로 등록된 사용자만 연다. 다른 사용자가 같은 메모 경로를 요청하면 거부한다.
+// 강사 공지는 읽기만 열고, 수정은 계약에 강사 역할이 없으므로 판정기에서 열지 않는다(수정 권한은 자료 API 가 저장된 강사로 따로 확인).
+// 쿼리가 붙은 요청과 자료 ID 자리의 기능 이름(export 등)은 정확한 경로가 아니므로 거부한다.
+// 주인 목록에는 엔진 실습 요청(scripts/fixture-7.mjs)의 가상 주인만 있다. 실제 주인은 엔진이 확인한 가명 주체 ID 로 추가한다.
+const VAULT_OWNERS = Object.freeze(['learner_fixture']);
 const ROUTE = /^(GET|POST|PUT|DELETE) (?:\/api)?(\/(?:notes|notices)(?:\/:id)?)$/u;
 const ID_SEGMENT = /^[A-Za-z0-9_-]{1,64}$/u;
 const RESERVED_IDS = new Set(['export', 'import', 'all', 'list', 'search', 'download', 'upload', 'bulk', 'backup', 'admin', 'new']);
@@ -66,7 +59,7 @@ function isCompositeAnomaly(request) {
 function readZone(request) {
   const route = typeof request.route === 'string' ? ROUTE.exec(request.route) : null;
   if (!route || route[1] !== request.method || typeof request.path !== 'string') return null;
-  if (request.queryLength !== 0 || request.querySha256 !== EMPTY_QUERY_SHA256) return null;
+  if (request.queryLength !== 0) return null;
   const shape = route[2];
   const path = request.path.replace(/^\/api(?=\/)/u, '');
   const resource = shape.startsWith('/notices') ? 'notice' : 'note';
@@ -75,21 +68,16 @@ function readZone(request) {
   const prefix = shape.slice(0, -3);
   const id = path.startsWith(prefix) ? path.slice(prefix.length) : '';
   if (!ID_SEGMENT.test(id) || RESERVED_IDS.has(id.toLowerCase())) return null;
-  return { resource, method: route[1], item, id };
-}
-
-function ownsNote(request, zone) {
-  const owner = NOTE_OWNERS.find(entry => entry.classId === request.classId && entry.projectId === request.projectId
-    && entry.service === request.service && entry.subjectId === request.subjectId && entry.deviceId === request.deviceId);
-  if (!owner) return false;
-  return !zone.item || owner.noteIds.includes(zone.id);
+  return { resource, method: route[1], item };
 }
 
 function zoneRule(request, zone) {
   if (!zone) return { deny: 'unknown_route_deny' };
-  if (zone.resource === 'notice') return { deny: 'notice_zone_instructor_only' };
+  if (zone.resource === 'notice') {
+    return zone.method === 'GET' ? { allow: 'class_notices_read_zone' } : { deny: 'notice_write_instructor_only' };
+  }
   if (!NOTE_SHAPES[zone.method]?.includes(zone.item)) return { deny: 'unknown_route_deny' };
-  return ownsNote(request, zone) ? { allow: 'own_notes_zone' } : { deny: 'own_notes_zone' };
+  return VAULT_OWNERS.includes(request.subjectId) ? { allow: 'own_notes_zone' } : { deny: 'own_notes_zone' };
 }
 
 function stepUpDone(request) {
