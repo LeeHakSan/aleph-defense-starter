@@ -18,7 +18,7 @@
 
 로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. 저장소의 `src/attack-check.mjs`는 `npm run bundle`이 실행하는 자기 점검으로, 실제 배포 주소에 로그인 없는 요청·위조 토큰 요청·공개용 `anon` 키 직접 요청을 보내 결과만 기록합니다.
 
-## 현재 작동하는 기능 (11단계)
+## 현재 작동하는 기능 (12단계)
 
 - `/`(11단계부터 접속 화면): 설치형 웹앱의 접속 화면입니다. `manifest`(`/manifest.webmanifest`, 앱 이름 "최 부장 자료실"·시작 주소·`standalone`·아이콘)를 연결하고, 서버가 알려 주는 **기기 승인 상태**와 승인 요청 버튼, 오프라인 안내만 보여 줍니다. 로그인 폼·메모 목록·편집 화면은 없습니다. 앱을 설치했다는 표시나 버튼만으로는 기기를 승인하지 않으며, 「자료실 열기」는 서버가 `approved`와 `connected`를 모두 `true`로 알려 줄 때만 켜집니다. 기존 로그인·메모 화면은 `/vault.html`로 옮겼고(기능은 그대로), 서버가 승인했다고 확인하기 전에는 로그인 폼도 메모 요청도 없습니다(자료실 화면 코드 `/vault-app.js`는 승인 확인 뒤에만 불러옵니다). 로그인 토큰은 브라우저 저장소(`localStorage`·`sessionStorage`·IndexedDB·쿠키·캐시)에 넣지 않고 화면 코드의 메모리에만 두므로 새로고침하면 다시 로그인합니다. 기기 키는 이 저장소에 없습니다. 화면은 서버 함수(`/api/*`)만 부르고, 화면 코드에는 Supabase 주소·공개 키·외부 라이브러리가 없습니다.
 - `POST /api/auth/login`·`/refresh`·`/logout`: 서버가 Supabase Auth를 공개 키(서버 환경 변수 `SUPABASE_PUBLISHABLE_KEY`)로 대신 부르고, 화면에는 로그인 토큰·갱신 토큰·만료 시각·사용자 ID·이메일만 돌려줍니다. 틀린 정보는 401(`LOGIN_FAILED`), 공개 키 설정 문제는 503(`AUTH_MISCONFIGURED`)입니다. 화면은 토큰이 만료되면 알아서 갱신하고, 갱신이 안 되면 로그아웃 상태로 돌아갑니다.
@@ -42,6 +42,11 @@
 - 10단계 한계(미실행): 심판이 부르는 복구 경로의 실제 요청 모양(본문 항목 이름 등)은 확인하지 못했고, 로그인한 시험 계정 B로 배포 주소에서 변조·삭제 뒤 복구를 직접 보내 본 실측은 하지 않았습니다. 복구 동작은 DB에서 가상 B 메모로 시험하고 되돌렸으며(`supabase/step10-check.sql`), API 처리는 가짜 DB 함수로 시험했습니다. 판정기는 쓰기를 거부하므로 엔진을 거치는 복구 호출은 막혀 있습니다(운영 엔진 연결 미검증).
 - 11단계 기기 승인 흐름(서버): 승인 여부는 서버가 정합니다(`src/protected-access.mjs`). 모든 보호 자료 API(`/api/notes`, `/api/notes/:id`, `/api/my/notes`, `/api/notices`, `/api/notices/:id`, `/api/restore/:noteId`)는 로그인 확인 **다음에** 서버의 승인 확인을 거치고, 승인되지 않았거나 확인할 수 없으면 자료에 접근하지 않습니다. 확인할 수 없으면 503(`device_verification_unavailable`), 승인 거부·대기이면 403(`device_not_approved`)입니다. 브라우저가 보낸 `approved`·`role`·`deviceRegistered`·헤더·쿼리·본문은 승인 근거로 읽지 않습니다. `GET /api/device/status`는 서버가 확인한 상태만 알려 주고, `POST /api/device/approval`은 승인 요청을 받아 줄 연결이 없으면 접수하지 않습니다(503). 로그인(`/api/auth/*`)과 공개 정책 사본(`/api/recovery-plan`)은 승인 확인 대상이 아닙니다.
 - **11단계 한계(중요)**: 기기 키 보관·요청 서명 확인·기기 승인은 제공 엔진(ALEPH SDP)의 몫이고, 이 과정에서는 엔진 어댑터를 제공받지 못했습니다. 그래서 승인 어댑터가 연결돼 있지 않아 **지금 배포에서는 서버가 기기를 승인할 수 없고**, 로그인한 요청도 보호 자료 API가 503으로 막으며 `/vault.html`은 승인 전 상태로 남습니다(자료실 화면과 승인된 기기의 동작은 가짜 서버로 열어 시험했고 실제 엔진으로는 시험하지 못했습니다). 서명 없는 요청, 서명 뒤 경로·본문을 바꾼 요청은 어떤 요청도 승인되지 않으므로 자료를 돌려주지 않지만, 서명 검증 자체를 구현한 것은 아니며 실제 서명·승인된 기기 요청은 **미검증**입니다. 엔진이 연결되면 `src/protected-access.mjs`의 어댑터 한 곳만 채우면 됩니다. 자료실을 다시 쓰려면 이 단계의 승인 확인(`src/notes-common.mjs`의 `protectedAccess.check`)을 되돌리는 변경이 필요합니다(이전 커밋 `7ac8d6a` 참고).
+- 12단계 탈환 작전실: `/operations.html`은 서버가 **방금 이 배포에 보낸 요청의 실제 응답**을 읽어 보여 줍니다(`GET /api/checks`). 화면의 문구나 색은 통과 근거가 아니며, 확인하지 못한 것은 「미실행」「없음」으로 남깁니다. 메모 제목·본문·토큰·실명·기기 키는 읽지도 표시하지도 않습니다. 보여 주는 것: (1) 점검 요약(기대와 같음·기대와 다름·미실행 수), (2) 1~12단계 정상·금지 요청 실측표(단계·구분·요청과 응답 상태·기대·실제·결과·**요청 ID**·**확인 시각**; 요청 ID 는 응답의 `x-vercel-id` 끝 토큰으로 Vercel 기록의 Request ID 와 같아 서버 기록과 맞춰 볼 수 있습니다), (3) 판정기 규칙 이름과 가상 입력 점검 결과, (4) 탐지 사건(`local_fixture`, 가상 사건), (5) 회수 상태(연결 없음, 회수 수·경과 시간 null), (6) 복구 버전(안전 정책 사본 검증 결과, 메모 사본은 미실행), (7) 41종 시험표 요약과 목록. 관측에 실패하면 이전 수치와 표를 모두 비우고 실패를 성공으로 표시하지 않습니다. 같은 서버가 15초 안에 다시 요청받으면 직전 관측을 자기 확인 시각과 함께 보여 줍니다(`cached`).
+- 12단계 점검 방식(`src/attack-check.mjs`): `runAttackChecks(배포 주소 또는 설정)`이 배포에 실제 HTTP 요청을 보내 응답 상태로 `observed`를 만들고 `{ attackId, stage, expected, observed, result }`만 돌려줍니다(`result`는 `blocked`·`breached`·`not_run`, 20개 이하). 요청을 보내지 못하거나 로그인이 필요해 보내지 않은 점검은 `not_run`이며 「막음」으로 세지 않습니다. 요청마다 `alephEvidence`에 사례(`caseId`)와 요청 이름(`requestKey`)을 연결하고 요청 헤더·URL 에는 넣지 않습니다. 이 파일은 아무것도 불러오지 않고 전역 `fetch`·`crypto`만 씁니다. 6~9단계 규칙 점검은 서버의 `GET /api/checks?case=<사례>`가 고정된 가상 입력으로 판정기·탐지 규칙을 실행한 응답(`ready`)을 읽으며(`src/rule-check.mjs`), 사례 이름은 고정 목록과만 비교하고 코드로 실행하지 않습니다. `ready`는 가상 조건이 맞았다는 뜻이지 실제 사용자 기기의 승인 상태가 아닙니다. 묶음(`npm run bundle`, `npm run check`)은 운영 측 현재 규칙대로 배포 주소를 넘기고 다섯 값과 `checkedAt`을 요구합니다.
+- 41종 시험표(`data/attack-matrix.json`): 도감의 41종 이름·지역과 8~12단계 카드에서 옮긴 공격을 적은 **계획표**입니다. 1~7단계 24종은 단계와 공격 내용을 옮기지 않았고 「미확인」입니다. 이 저장소의 점검이 그 공격을 그대로 재현해 관측한 것만 `executed`로 바꿀 수 있으며 **지금은 0종**, 나머지 41종은 `not_run`입니다. 로그인한 시험 계정 B 가 필요한 공격, 회수된 신원의 재전송, 서명 변조는 이 저장소에서 재현하지 못했습니다. 포털 도감의 심판 기록(잡은 괴물 수)을 이 표의 실행 결과로 확대해 적지 않습니다.
+- 공개 설정 사본: 빌드가 `/aleph.config.json`(스키마 `aleph.config.v1`: 단계·저장소·`originalApiUrl`·`restoreRoute`·`allowedRoutes` 객체 목록)을 만들어 배포합니다. 비밀값·로그인 발급자·심판 주소는 담지 않고 `aleph.config.json`의 값에서만 옮기며, 생성물이라 커밋하지 않습니다. 기존 `/aleph.json`은 그대로입니다.
+- 12단계 한계(미실행): 로그인한 시험 계정 A·B 와 승인된 기기가 필요한 시험(타인 메모 조회·수정, 승인된 기기의 정상 요청), 회수 연결을 통한 재시도·재접속·이동, 서명 변조 시험, 메모 사본 개수 확인은 실행하지 못했습니다. 작전실의 점검은 로그인 없는 요청과 가상 규칙 입력만 보냅니다. 운영 엔진 연결·회수 수치·경과 시간은 **미연결**(null)입니다.
 - 한계(미실행): 이 저장소의 `/api/*` 서버 함수는 아직 판정기를 부르지 않습니다. 8단계의 구역 규칙도 가상 요청으로만 시험했고, 로그인한 두 계정으로 배포 주소에서 남의 메모·공지 수정을 직접 보내 본 실측은 하지 않았습니다(시험 계정 로그인 정보가 없는 자동 점검은 `미실행`으로 남깁니다). 다시 로그인 전 실제 자료 차단과 새 로그인 뒤 허용은 제공 엔진이 새 로그인 시각을 검증하는 환경에서만 시험할 수 있어 **실측하지 않았습니다**. 여기서는 가상 요청으로 규칙만 시험했습니다.
 
 ### 다시 실행하는 방법
@@ -60,7 +65,8 @@
 8. 9단계 확인: `npm run detect:test`는 가상 사건 6건(정상 30건·120건은 관찰, 121건·200건은 `propose_revocation`, 사용자별 100건·10분 밖으로 흩어진 200건은 관찰)이 모두 `통과`여야 합니다. `node --test test/detect-step9.test.mjs`는 10분 경계, 뒤섞인 순서, 잘못된 사건, 한 명만 제안 같은 경우를 더 봅니다.
 9. 10단계 복구 확인: 가상 시험 계정 B로 로그인해 새 가상 메모를 만든 뒤 (1) 그 메모를 수정해 변조한 다음 `POST /api/restore/<그 메모 id>`를 호출하면 처음 내용으로 돌아와야 하고, (2) 그 메모를 삭제한 다음 같은 경로를 호출하면 같은 ID·소유자·내용으로 다시 생겨야 합니다. 시험 계정 A가 같은 경로로 B의 메모 id를 호출하면 403이고 메모는 그대로여야 합니다. 로그인 없이 호출하면 401입니다(`curl -i -X POST https://VERCEL_APP_URL/api/restore/<메모 id>`). 정책 사본 확인은 `npm run policy:plan`입니다. DB 단독 시험은 `supabase/step10-check.sql`을 Supabase SQL Editor에서 실행합니다(끝에서 일부러 오류를 내 시험 행이 모두 되돌려지며 결과는 오류 메시지의 JSON으로 읽습니다).
 10. 11단계 확인: 배포 주소의 `/`를 열면 「기기 승인 상태」「승인 요청」「자료실 열기」(꺼짐)와 오프라인 안내만 있고 로그인 폼·메모 목록이 없어야 합니다. 브라우저 개발자 도구에서 `<link rel="manifest">`와 `/manifest.webmanifest`(이름·시작 주소·표시 방식·아이콘)를 확인합니다. `curl -s https://VERCEL_APP_URL/api/device/status` → `approved:false`, `curl -i -X POST https://VERCEL_APP_URL/api/device/approval` → 503입니다. `/vault.html`도 승인 전에는 로그인 폼이 없고 개발자 도구 네트워크에 `/api/notes` 요청이 없어야 합니다. 승인 어댑터가 연결된 환경의 승인된 기기에서 기존 화면이 열리는지와 서명 변조 시험은 **미실행**입니다.
-11. 복구 뒤 1~9단계 다시 확인하는 순서(실행하지 않은 것은 **미실행**으로 남기고 결과를 꾸미지 않습니다):
+11. 12단계 확인: 배포 주소의 `/operations.html`을 열면 점검 요약·1~12단계 실측표(요청 ID·확인 시각 포함)·판정기 규칙·탐지(`local_fixture`)·회수(연결 없음)·복구 버전·41종 시험표가 보이고, 「새로 관측」을 누르면 새 확인 시각으로 바뀌어야 합니다. 표의 요청 ID 를 Vercel 프로젝트의 Logs 에서 찾으면 같은 요청(경로·상태 코드)이 있어야 합니다. `curl -s https://VERCEL_APP_URL/api/checks?case=s06-unregistered` → `ready:true`, `curl -s https://VERCEL_APP_URL/aleph.config.json` → 공개 설정 사본입니다. `npm run check`(= `npm run bundle`)는 실제 배포에 요청을 보내 다섯 값(`attackId·stage·expected·observed·result`)을 만들며 `not_run`은 미실행 항목입니다. 41종 시험표의 `executed`는 0종이므로 시험표를 통과 근거로 읽지 않습니다.
+12. 복구 뒤 1~9단계 다시 확인하는 순서(실행하지 않은 것은 **미실행**으로 남기고 결과를 꾸미지 않습니다):
     1. `npm run policy:plan` — 차이 0개이거나, 복원 뒤에는 `바뀔 항목 0개`여야 합니다. 시험 정책이 바뀌었으면 보여 준 확인값으로 `npm run policy:restore -- <확인값>`.
     2. `npm run decider:test` → `npm run fixture:7` → `npm run detect:test` — 6·7·9단계 가상 요청·사건(각각 심판 판정이 아닙니다).
     3. `node --test test/*.test.mjs` — 8·10단계 구역·권한·복구·정책 시험을 포함한 전체 시험.
@@ -68,7 +74,48 @@
     5. 배포 뒤 로그인 없이 `curl -i https://VERCEL_APP_URL/api/notes`, `/api/my/notes`, `/api/notices`, `POST /api/restore/<id>` → 모두 401, `/data.json`은 메모 없음.
     6. 11단계부터 보호 API는 승인 확인이 먼저라 로그인한 시험 계정 A·B 실측은 승인 어댑터 연결 전에는 503이 나옵니다(미실행): 로그인한 시험 계정 A·B 실측(남의 메모 조회·수정·목록 거부, 공지 수정 거부, 자기 메모 정상 사용): 시험 계정 로그인 정보가 없는 자동 점검에서는 **미실행**입니다.
     7. `npm run bundle` — 직접 점검 결과와 미실행 항목을 읽습니다.
-12. 제출 묶음: 변경을 모두 커밋한 뒤 `ALEPH_PUBLIC_KEY=<공개 키> npm run bundle`을 실행합니다. 공개 키는 원본 자료 주소를 직접 읽어 보는 점검에만 쓰이고 어디에도 기록되지 않으며, 주지 않으면 그 점검은 "미실행"으로 남습니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
+13. 제출 묶음: 변경을 모두 커밋한 뒤 `ALEPH_PUBLIC_KEY=<공개 키> npm run bundle`을 실행합니다. 공개 키는 원본 자료 주소를 직접 읽어 보는 점검에만 쓰이고 어디에도 기록되지 않으며, 주지 않으면 그 점검은 "미실행"으로 남습니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
+
+## 검사한 커밋에서 재현하기
+
+모든 절차는 **검사한 커밋**을 기준으로 합니다. 검사한 커밋은 제출 묶음(`artifacts/submission.json`, 커밋하지 않음)의 `commit` 값이고, 배포의 `/aleph.json`이 알려 주는 `commit`과 같아야 합니다.
+
+### 학생이 만든 것과 제공 엔진의 출처
+
+| 출처 | 들어 있는 것 |
+|---|---|
+| 학생이 만든 것 | 판정기(`src/decider.mjs`), 탐지 규칙(`src/detect.mjs`), 접속 앱 화면(`public/index.html`·`manifest.webmanifest`·`vault.html`·`vault-app.js`), 탈환 작전실(`public/operations.html`, `api/checks`, `src/operations.mjs`), 자료실 서버 함수(`api/`), 백업·복구(SQL 과 `api/restore`, `src/policy-recovery.mjs`), 점검 코드(`src/attack-check.mjs`), 보너스 XDR 판정(`xdr/*/decide.mjs`) |
+| 제공 엔진 | **ALEPH SDP 엔진**(수업 운영 측이 제공): 기기 등록·기기 키 보관·로그인과 기기 결합·요청 서명 확인·판정기 호출과 집행·접속 회수·감사 기록 보관을 맡습니다. 이 저장소에는 엔진 코드·키·바이너리·설치 명령을 넣지 않았고, 엔진은 이 과정에서 연결되지 않았습니다. |
+| 수업 제공 시작 틀 | `scripts/bundle.mjs`·`scripts/build-public.mjs`·`scripts/deployment-identity.mjs`·`src/verify-login.mjs` 등(운영 측 규칙에 맞게 일부만 고침) |
+
+### 1. 설치
+
+1. 이 공개 저장소를 clone 하고 검사한 커밋으로 `git checkout <검사한 커밋>` 합니다(Node.js 22 이상).
+2. `npm ci`로 패키지를 설치합니다(`@supabase/supabase-js`, `jose`).
+3. 서버 비밀 설정은 Vercel 프로젝트의 환경 변수에만 둡니다(`SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`). 값은 이 저장소·답변·로그에 넣지 않으며 포장하지 않습니다.
+4. 새 DB 라면 학습 전용 Supabase 프로젝트에서만 `supabase/` 의 SQL 을 `step4-rls`, `step5-revoke-direct`, `step8-notices`, `step10-backup` 순서로 실행합니다. 현재 DB 는 초기화할 필요가 없고 지우지 않습니다.
+
+### 2. 실행
+
+1. 같은 커밋을 Vercel 에 배포합니다(저장소를 연결한 프로젝트에 push). 빌드는 `npm run build`(공개 정적 파일과 `/aleph.json`·`/aleph.config.json` 생성)입니다.
+2. 배포의 `/aleph.json`의 `repoUrl`·`commit`이 실제 원격과 검사한 커밋에 맞는지 대조합니다.
+3. 화면: `/`(접속 화면, 기기 승인 상태)와 `/operations.html`(탈환 작전실)을 엽니다. 서버 승인 어댑터가 연결돼 있지 않으면 보호 자료 API 는 로그인한 요청도 503 으로 막고 `/vault.html`은 승인 전 상태로 남습니다.
+4. 시험: `npm test`(= `node --test test/*.test.mjs`), `npm run decider:test`, `npm run fixture:7`, `npm run detect:test`, `npm run policy:plan`. 모두 가상 요청·사건 연습이며 심판 통과의 증거가 아닙니다.
+5. 점검: 변경을 모두 커밋한 뒤 커밋하지 않는 `bundle-notes.json`에 실제로 구현하고 확인한 내용을 적고 `npm run bundle`(또는 `npm run check`)을 실행합니다. `artifacts/submission.json`은 실제 HEAD·원격과 새 실측으로 만들어지며 커밋하지 않습니다.
+
+### 3. 중지
+
+1. Vercel 프로젝트에서 현재 배포를 내리거나(Instant Rollback, 프로젝트 일시 중지) 환경 변수를 비활성화해 서버 함수가 자료에 접근하지 못하게 합니다.
+2. 제공 엔진이 연결돼 있다면 엔진 쪽에서 이 자료실의 허용 경로를 끕니다. 이 저장소에서 엔진을 끄는 방법은 제공하지 않습니다.
+3. DB·사본·복구 기록·감사 자료는 지우지 않습니다.
+
+### 4. 복구
+
+1. `git status`와 `git diff`로 변경을 확인하고 보존할 내용을 남깁니다. `git reset --hard`는 쓰지 않습니다.
+2. 검사한 커밋을 별도로 checkout 해 같은 방식으로 다시 배포합니다.
+3. 메모 한 건 복구: 로그인한 본인의 메모 ID 하나만 `POST /api/restore/:noteId`로 지정합니다(서비스 notes). 사본 소유자·ID·내용 해시를 대조하고 다른 메모·감사 기록은 건드리지 않습니다.
+4. 정책 복구: `npm run policy:plan`으로 복원할 버전과 바뀔 항목을 먼저 보고, 확인값이 맞을 때만 `npm run policy:restore -- <확인값>`을 실행합니다(시험 정책만, 운영 정책은 건드리지 않음).
+5. 복구 뒤 위 "복구 뒤 1~9단계 다시 확인하는 순서"와 `npm run bundle`, 작전실의 새 관측을 다시 실행하고 **실행하지 않은 시험은 미실행으로 남깁니다**.
 
 ## 가상 메모 노출 확인 절차
 

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>최 부장 자료실 | 탈환 작전실</title>
+  <meta name="theme-color" content="#101a28">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; background: #101a28; color: #ecf4ff; }
+    main { max-width: 1080px; margin: 0 auto; padding: 36px 20px 64px; }
+    .eyebrow { color: #8ad8df; font-size: 14px; font-weight: 700; letter-spacing: .08em; }
+    h1 { margin: 14px 0; font-size: clamp(28px, 6vw, 42px); line-height: 1.2; }
+    h2 { margin: 0 0 12px; font-size: 19px; }
+    p { font-size: 15px; line-height: 1.7; color: #bfd0e5; margin: 8px 0; }
+    a { color: #8ad8df; }
+    .card { margin: 22px 0; padding: 20px; border: 1px solid #2d4460; border-radius: 14px; background: #1a2a3d; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .stat { padding: 14px; border: 1px solid #2d4460; border-radius: 12px; background: #101a28; }
+    .stat b { display: block; font-size: 28px; }
+    .stat span { font-size: 13px; color: #9fb4cc; }
+    .btn { padding: 8px 18px; background: #22364d; border: 1px solid #2d4460; border-radius: 8px; color: #ecf4ff; font-size: 14px; cursor: pointer; font-family: inherit; }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .meta { font-size: 13px; color: #9fb4cc; word-break: break-all; }
+    .scroll { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; }
+    th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid #2d4460; }
+    th { color: #8ad8df; white-space: nowrap; }
+    td:first-child, td:nth-child(2) { white-space: nowrap; }
+    table { min-width: 880px; }
+    td.mono { font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all; }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; border: 1px solid #51667c; background: #22364d; }
+    .tag[data-r="blocked"] { border-color: #8ad8df88; color: #8ad8df; }
+    .tag[data-r="breached"] { border-color: #d07384; color: #ffb4c0; background: #612a3544; }
+    .tag[data-r="not_run"] { border-color: #d0a56e; color: #ffe9c7; background: #5a43212e; }
+    .error { padding: 12px 16px; border-radius: 10px; border: 1px solid #d07384; background: #612a3544; color: #ffe3e8; }
+    ul { margin: 6px 0; padding-left: 20px; font-size: 14px; color: #bfd0e5; line-height: 1.7; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">BYTE BACK · 12단계 탈환 작전실</div>
+    <h1>탈환 작전실</h1>
+    <p>이 화면은 서버가 방금 이 배포에 보낸 요청의 실제 응답을 그대로 보여 줍니다. 화면의 문구나 색은 통과의 근거가 아닙니다. 확인하지 못한 것은 「미실행」이나 「없음」으로 남기고, 메모 제목·본문·토큰·기기 키는 읽지도 표시하지도 않습니다.</p>
+    <p><button class="btn" id="refresh" type="button">새로 관측</button> <a href="/">접속 화면으로</a></p>
+
+    <div class="error hidden" id="failure" role="alert"></div>
+
+    <section class="card" id="summary-card">
+      <h2>이번 관측</h2>
+      <div class="grid" id="summary"></div>
+      <p class="meta" id="meta">관측하는 중…</p>
+    </section>
+
+    <section class="card">
+      <h2>1~12단계 정상·금지 요청 실측표</h2>
+      <p>한 줄은 한 점검입니다. 요청 ID 는 응답의 서버 요청 번호(Vercel 기록의 Request ID 와 같음)이고, 확인 시각은 그 요청을 보낸 시각입니다.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>단계</th><th>구분</th><th>요청과 응답</th><th>기대</th><th>실제</th><th>결과</th><th>요청 ID</th><th>확인 시각</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+    </section>
+
+    <section class="card">
+      <h2>판정기 규칙</h2>
+      <p class="meta" id="rule-ids"></p>
+      <ul id="rule-cases"></ul>
+    </section>
+
+    <section class="card">
+      <h2>탐지 사건</h2>
+      <p class="meta" id="detection"></p>
+    </section>
+
+    <section class="card">
+      <h2>회수 상태</h2>
+      <p id="revocation"></p>
+    </section>
+
+    <section class="card">
+      <h2>복구 버전</h2>
+      <p id="recovery"></p>
+    </section>
+
+    <section class="card">
+      <h2>41종 공격 시험표</h2>
+      <p id="matrix-summary"></p>
+      <div class="scroll"><table>
+        <thead><tr><th>번호</th><th>이름</th><th>단계</th><th>공격</th><th>상태</th><th>이 점검과의 관계</th></tr></thead>
+        <tbody id="matrix"></tbody>
+      </table></div>
+    </section>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const KIND = { forbidden: '금지 요청', normal: '정상 요청', rule: '규칙(가상 입력)', logged_in: '로그인 필요' };
+    const RESULT = { blocked: '기대와 같음', breached: '기대와 다름', not_run: '미실행' };
+
+    function cell(text, className) {
+      const td = document.createElement('td');
+      if (className) td.className = className;
+      td.textContent = text ?? '없음';
+      return td;
+    }
+
+    function tag(result) {
+      const td = document.createElement('td');
+      const span = document.createElement('span');
+      span.className = 'tag';
+      span.dataset.r = result;
+      span.textContent = RESULT[result] ?? '미실행';
+      td.append(span);
+      return td;
+    }
+
+    function fill(id, rows) { $(id).replaceChildren(...rows); }
+
+    // 관측에 실패하면 이전 수치와 표를 모두 비운다(낡은 성공을 보여 주지 않는다).
+    function clearAll(message) {
+      for (const id of ['summary', 'rows', 'rule-cases', 'matrix']) $(id).replaceChildren();
+      for (const id of ['rule-ids', 'detection', 'revocation', 'recovery', 'matrix-summary']) $(id).textContent = '';
+      $('meta').textContent = '이번 관측 없음';
+      $('failure').textContent = message;
+      $('failure').classList.remove('hidden');
+    }
+
+    function render(data) {
+      $('failure').classList.add('hidden');
+      const s = data.summary;
+      fill('summary', [['점검', s.total], ['기대와 같음', s.blocked], ['기대와 다름', s.breached], ['미실행', s.notRun]].map(([label, value]) => {
+        const box = document.createElement('div');
+        const num = document.createElement('b');
+        const text = document.createElement('span');
+        box.className = 'stat';
+        num.textContent = String(value);
+        text.textContent = label;
+        box.append(num, text);
+        return box;
+      }));
+      $('meta').textContent = `확인 시각 ${data.checkedAt} · 배포 커밋 ${data.commit ?? '없음'} · ${data.cached ? '직전 관측을 다시 보여 줌(15초 안의 반복 요청)' : '방금 새로 관측함'}`;
+
+      fill('rows', data.rows.map((row) => {
+        const tr = document.createElement('tr');
+        const asked = row.requests.length
+          ? row.requests.map((r) => `${r.method} ${r.path} → ${r.status ?? '실패'}`).join('\n')
+          : '요청을 보내지 않음';
+        const ids = row.requests.length ? row.requests.map((r) => r.requestId ?? '없음').join('\n') : '없음';
+        const when = row.requests.length ? row.requests[0].checkedAt : '없음';
+        tr.append(cell(String(row.stage)), cell(KIND[row.kind] ?? row.kind), cell(asked, 'mono'), cell(row.expected), cell(row.observed), tag(row.result), cell(ids, 'mono'), cell(when, 'mono'));
+        for (const td of tr.children) td.style.whiteSpace = 'pre-line';
+        return tr;
+      }));
+
+      $('rule-ids').textContent = `구현한 규칙 ${data.judgeRules.ruleIds.length}개: ${data.judgeRules.ruleIds.join(', ')}`;
+      fill('rule-cases', data.judgeRules.cases.map((c) => {
+        const li = document.createElement('li');
+        li.textContent = `${c.attackId}: ${RESULT[c.result] ?? '미실행'} — ${c.observed} (요청 ID ${c.requestId ?? '없음'})`;
+        return li;
+      }));
+
+      $('detection').textContent = `출처 ${data.detection.source}(가상 사건, 실제 사건 아님) · ${data.detection.cases.map((c) => `${c.name}: ${c.action}`).join(' · ')}`;
+      $('revocation').textContent = `연결 ${data.revocation.connected ? '있음' : '없음'} (${data.revocation.state}) · 회수 수 ${data.revocation.revoked ?? '없음'} · 경과 시간 ${data.revocation.elapsedSeconds ?? '없음'} — ${data.revocation.note}`;
+      const copy = data.recovery.policyCopy;
+      $('recovery').textContent = (copy.verified
+        ? `안전 정책 사본 검증됨 · 복원할 버전 ${copy.restoreVersion} · 현재 시험 정책 버전 ${copy.currentVersion} · 바뀔 항목 ${copy.changes}개`
+        : `안전 정책 사본 검증 안 됨(${copy.error})`) + ` · 메모 사본: ${data.recovery.memoBackups.state === 'not_run' ? '미실행' : data.recovery.memoBackups.state} (${data.recovery.memoBackups.note})`;
+
+      const m = data.attackMatrix;
+      $('matrix-summary').textContent = `전체 ${m.total}종 · 이 저장소에서 재현해 관측한 것 ${m.executed}종 · 미실행 ${m.notRun}종. 시험표의 값은 계획이며 이 화면이 통과로 바꾸지 않습니다.`;
+      fill('matrix', m.items.map((item) => {
+        const tr = document.createElement('tr');
+        tr.append(cell(String(item.no)), cell(`${item.name} (${item.region})`), cell(item.stage === null ? '미확인' : `${item.stage}단계`), cell(item.attack ?? '미확인'),
+          tag(item.status === 'executed' ? 'blocked' : 'not_run'), cell(`${item.relatedCases.length ? `관련 점검 ${item.relatedCases.join(', ')}. ` : ''}${item.note}`));
+        return tr;
+      }));
+    }
+
+    async function observe() {
+      $('refresh').disabled = true;
+      $('meta').textContent = '관측하는 중…';
+      try {
+        const response = await fetch('/api/checks', { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok || data?.error || !data?.summary || !Array.isArray(data?.rows)) throw new Error('observation_failed');
+        render(data);
+      } catch {
+        clearAll('이번 관측에 실패했습니다. 이전 수치와 표를 지웠고, 실패한 관측을 성공으로 표시하지 않습니다.');
+      } finally {
+        $('refresh').disabled = false;
+      }
+    }
+
+    $('refresh').addEventListener('click', observe);
+    observe();
+  </script>
+</body>
+</html>

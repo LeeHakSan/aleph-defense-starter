@@ -169,8 +169,8 @@ test('공개 파일에 비밀값·메모 본문·시드 표식이 없다', async
   }
 });
 
-test('설정: 11단계이고 기존 복구 경로·허용 경로는 그대로다', () => {
-  assert.equal(config.step, 11);
+test('설정: 11단계 이상이고 기존 복구 경로·허용 경로는 그대로다', () => {
+  assert.ok(config.step >= 11);
   assert.equal(config.restoreRoute, '/api/restore/:noteId');
   assert.deepEqual(config.allowedRoutes, ['GET /api/my/notes', 'GET /api/notes/:id', 'GET /notes/:id']);
 });

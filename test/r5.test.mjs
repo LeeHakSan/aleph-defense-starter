@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
-import { runAttackChecks } from '../src/attack-check.mjs';
+import { observeAll, runAttackChecks } from '../src/attack-check.mjs';
 
 const config = {
   step: 1,
@@ -52,44 +52,133 @@ test('build identity publishes the original api url only as a plain https path',
   }
 });
 
-const realStep = JSON.parse(await readFile(new URL('../aleph.config.json', import.meta.url), 'utf8')).step;
+const APP = 'https://student-defense.vercel.app';
+const ATTEMPT_KEYS = 'attackId,expected,observed,result,stage';
 
-test('attack checks call the deployed app without credentials and flag an unprotected one', async () => {
-  const stepConfig = {
-    ...config,
-    step: realStep,
-    identityProvider: {
-      issuer: 'https://project.supabase.co/auth/v1',
-      jwksUrl: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
-      audience: 'authenticated',
-    },
+// 보호가 풀린 배포를 흉내 낸다: 모든 경로가 메모를 돌려주고 로그인 폼이 있는 화면을 준다.
+function openFetch(calls) {
+  return async (url, init) => {
+    calls.push({ url: String(url), init });
+    const path = new URL(String(url)).pathname;
+    const html = path === '/' || path.endsWith('.html');
+    return new Response(html ? '<input type="password" id="pw"><ul id="notes"></ul><script>fetch("/api/notes")</script>'
+      : JSON.stringify({ ready: false, approved: true, verified: false, notes: [{ title: '가상' }], title: '가상', content: '가상', identityProvider: { issuer: 'https://project.supabase.co/auth/v1' } }),
+    { status: 200, headers: { 'content-type': html ? 'text/html' : 'application/json', 'x-vercel-id': 'iad1::abc12-1700000000000-feedfacecafe' } });
   };
-  const originalFetch = globalThis.fetch;
-  const calls = [];
-  try {
-    globalThis.fetch = async (url, init) => {
-      calls.push({ url: String(url), init });
-      return new Response(JSON.stringify({ sampleMarker: 'SAMPLE_NOTE_1', notes: [{ title: '가상' }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    };
-    const exposed = await runAttackChecks(stepConfig);
-    assert.ok(exposed.length >= 1 && exposed.length <= 20);
-    assert.equal(exposed[0].attackId, 'data_json_notes_empty');
-    assert.match(exposed[0].observed, /메모 또는 확인 표시가 남아 있음/u);
-    const dataCall = calls.find(call => call.url === 'https://student-defense.vercel.app/data.json');
-    assert.ok(dataCall);
-    assert.equal(dataCall.init.redirect, 'error');
-    assert.equal(dataCall.init.headers.authorization, undefined);
-    assert.match(exposed.find(item => item.attackId === 'api_notes_list_no_token').observed, /거부되지 않음/u);
-    assert.match(exposed.find(item => item.attackId === 'api_notices_no_token').observed, /거부되지 않음/u);
+}
 
-    globalThis.fetch = async () => new Response('<html>not the data</html>', { status: 401 });
-    const closed = await runAttackChecks(stepConfig);
-    assert.match(closed[0].observed, /메모·확인 표시 없음/u);
-    assert.match(closed.find(item => item.attackId === 'api_notices_no_token').observed, /자료 없이 거부됨/u);
-  } finally {
-    globalThis.fetch = originalFetch;
+// 정상 배포를 흉내 낸다: 보호 경로는 401, 규칙 점검은 ready:true, 승인 화면은 정적 안내만 있다.
+function safeFetch(calls) {
+  return async (url, init) => {
+    calls.push({ url: String(url), init });
+    const { pathname, searchParams } = new URL(String(url));
+    const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-vercel-id': 'iad1::abc12-1700000000000-feedfacecafe' } });
+    if (pathname === '/api/checks') return json(200, { ready: true, decision: 'deny', action: 'propose_revocation' });
+    if (pathname === '/api/device/status') return json(200, { approved: false, connected: false });
+    if (pathname === '/api/device/approval') return json(503, { error: 'device_verification_unavailable' });
+    if (pathname === '/api/recovery-plan') return json(200, { verified: true, restoreVersion: 1, changes: [] });
+    if (pathname === '/aleph.json') return json(200, { identityProvider: { issuer: 'https://project.supabase.co/auth/v1' } });
+    if (pathname === '/data.json') return json(200, { notes: [] });
+    if (pathname === '/') return new Response('<link rel="manifest" href="/m"><h2>기기 승인 상태</h2>', { status: 200, headers: { 'content-type': 'text/html' } });
+    if (pathname === '/vault.html' || pathname === '/operations.html') return new Response('<main>안내만 있습니다</main>', { status: 200, headers: { 'content-type': 'text/html' } });
+    if (pathname === '/notes.json' || pathname.startsWith('/rest/')) return json(404, { error: 'NOT_FOUND' });
+    void searchParams;
+    return json(401, { error: 'LOGIN_REQUIRED' });
+  };
+}
+
+test('점검은 배포 주소 문자열이나 설정 객체를 받아 다섯 값만 돌려주고 20개를 넘지 않는다', async () => {
+  for (const input of [APP, { publicAppUrl: APP, step: 12, sampleMarker: 'SAMPLE_NOTE_1' }]) {
+    const calls = [];
+    const attempts = await observeAndRun(input, safeFetch(calls));
+    assert.ok(attempts.length >= 1 && attempts.length <= 20, String(attempts.length));
+    for (const attempt of attempts) {
+      assert.equal(Object.keys(attempt).sort().join(','), ATTEMPT_KEYS);
+      assert.match(attempt.attackId, /^[a-z0-9][a-z0-9_.-]{0,79}$/iu);
+      assert.ok(Number.isInteger(attempt.stage) && attempt.stage >= 1 && attempt.stage <= 12);
+      assert.ok(['blocked', 'breached', 'not_run'].includes(attempt.result));
+      assert.ok(attempt.expected.length > 0 && attempt.expected.length <= 300);
+      assert.ok(attempt.observed.length > 0 && attempt.observed.length <= 300);
+    }
+    assert.equal(new Set(attempts.map(attempt => attempt.attackId)).size, attempts.length);
   }
 });
+
+test('정상 배포: 거부해야 할 요청은 blocked, 로그인이 필요한 점검은 보내지 않고 not_run 으로 둔다', async () => {
+  const attempts = await observeAndRun(APP, safeFetch([]));
+  const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
+  for (const id of ['s01-static-notes', 's03-unauth-list', 's03-fake-token', 's05-direct-table', 's06-unregistered', 's09-burst-read',
+    's10-restore-unauth', 's10-policy-copy', 's11-approval-screen', 's11-device-status', 's12-operations-screen', 's12-combined-attack']) {
+    assert.equal(byId[id].result, 'blocked', `${id}: ${byId[id].observed}`);
+  }
+  assert.equal(byId['s04-logged-in-cases'].result, 'not_run');
+  assert.match(byId['s04-logged-in-cases'].observed, /미실행/u);
+  assert.equal(attempts.some(attempt => attempt.result === 'breached'), false);
+});
+
+test('보호가 풀린 배포: 같은 점검이 breached 로 표시되고 고정 문자열로 막음을 적지 않는다', async () => {
+  const attempts = await observeAndRun(APP, openFetch([]));
+  const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
+  for (const id of ['s01-static-notes', 's03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's06-unregistered',
+    's10-restore-unauth', 's11-approval-screen', 's12-operations-screen', 's12-combined-attack']) {
+    assert.equal(byId[id].result, 'breached', `${id}: ${byId[id].observed}`);
+  }
+  assert.match(byId['s03-unauth-list'].observed, /HTTP 200/u);
+});
+
+test('요청을 보내지 못하면 막음으로 세지 않고 not_run 으로 남긴다', async () => {
+  const attempts = await observeAndRun(APP, async () => { throw new Error('network down'); });
+  const sent = attempts.filter(attempt => attempt.attackId !== 's04-logged-in-cases');
+  assert.ok(sent.length > 0);
+  assert.ok(sent.every(attempt => attempt.result === 'not_run'), JSON.stringify(sent.map(a => a.result)));
+  assert.ok(attempts.every(attempt => attempt.result !== 'blocked'));
+});
+
+test('요청마다 alephEvidence 에 사례와 요청 이름을 연결하고 헤더·URL 에는 넣지 않는다', async () => {
+  const calls = [];
+  await observeAndRun(APP, safeFetch(calls));
+  assert.ok(calls.length >= 20);
+  for (const { url, init } of calls) {
+    assert.equal(typeof init.alephEvidence?.caseId, 'string', url);
+    assert.equal(typeof init.alephEvidence?.requestKey, 'string', url);
+    assert.doesNotMatch(url, /alephEvidence|caseId|requestKey/u);
+    assert.equal(Object.keys(init.headers).some(key => /aleph|evidence/iu.test(key)), false);
+    assert.equal(init.redirect, 'manual');
+  }
+  const keysPerCase = Object.groupBy(calls, ({ init }) => init.alephEvidence.caseId);
+  for (const [caseId, list] of Object.entries(keysPerCase)) {
+    const keys = list.map(({ init }) => init.alephEvidence.requestKey);
+    assert.equal(new Set(keys).size, keys.length, `${caseId}: 요청 이름이 겹침`);
+  }
+});
+
+test('점검은 로그인 토큰·키를 보내지 않고 위조 토큰은 서명이 맞지 않는 새 토큰이다', async () => {
+  const calls = [];
+  await observeAndRun(APP, safeFetch(calls));
+  const auth = calls.map(({ init }) => init.headers.authorization).filter(Boolean);
+  assert.equal(auth.length, 1);
+  assert.ok(auth[0].startsWith('Bearer '));
+  assert.equal(auth[0].slice('Bearer '.length).split('.').length, 3);
+  assert.equal(calls.some(({ url }) => /^https:\/\/(?!student-defense)/u.test(url)), false);
+});
+
+test('잘못된 배포 주소는 요청을 보내기 전에 거부한다', async () => {
+  for (const bad of ['http://student-defense.vercel.app', 'not a url', `https://user:pw${'@'}student-defense.vercel.app`, `${APP}/x`, `${APP}?a=1`, undefined, 42]) {
+    await assert.rejects(observeAll(bad, { fetch: async () => { throw new Error('요청이 나가면 안 됨'); } }), undefined, String(bad));
+  }
+});
+
+test('점검 파일은 아무것도 불러오지 않고 파일·환경 변수를 읽지 않는다', async () => {
+  const source = (await readFile(new URL('../src/attack-check.mjs', import.meta.url), 'utf8')).replace(/\/\/.*$/gmu, '');
+  assert.doesNotMatch(source, /^\s*import\s|\brequire\s*\(|import\s*\(|process\.|node:|readFile/mu);
+});
+
+async function observeAndRun(input, fetchImpl) {
+  const original = globalThis.fetch;
+  globalThis.fetch = fetchImpl;
+  try {
+    return await runAttackChecks(input);
+  } finally {
+    globalThis.fetch = original;
+  }
+}

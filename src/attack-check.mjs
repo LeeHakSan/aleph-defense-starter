@@ -1,292 +1,213 @@
-import crypto from 'node:crypto';
+// 1~12단계 점검. 배포에 보낼 수 있는 점검은 실제 요청을 보내 그 응답으로 observed 를 만들고, 판정·탐지 규칙 점검은 배포된
+// 서버의 /api/checks?case=... 가 고정된 가상 입력으로 규칙을 실행한 응답을 읽습니다. 고정 문자열로 「막음」을 적지 않습니다.
+// 요청을 보내지 못한 점검, 로그인이 필요해 보내지 않은 점검은 result 를 not_run 으로 두고 observed 에 그 사실을 적습니다.
+// 이 파일은 아무것도 불러오지 않고 전역 fetch·crypto 만 쓰며, 파일·환경 변수를 읽지 않습니다. 요청마다 alephEvidence 에
+// 사례(caseId)와 요청 이름(requestKey)을 연결합니다(요청 헤더·URL 에는 넣지 않습니다).
 
-// The student changes this check as each stage adds an attack to the same app.
-// Never return tokens, private keys, real names, or note bodies.
-export async function runAttackChecks(config) {
-  if (config.step !== 11) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
-  let app;
-  try {
-    app = new URL(config.publicAppUrl);
-  } catch {
-    throw new Error('aleph.config.json의 실제 배포 주소를 먼저 넣어 주세요.');
-  }
-  if (app.protocol !== 'https:' || app.username || app.password || app.search || app.hash
-      || app.pathname !== '/' || app.hostname.endsWith('.example')) {
-    throw new Error('aleph.config.json의 실제 배포 주소를 먼저 넣어 주세요.');
-  }
-  const issuer = config.identityProvider?.issuer;
-  if (typeof issuer !== 'string') throw new Error('aleph.config.json의 identityProvider를 먼저 채워 주세요.');
+const TEST_UUID = '00000000-0000-4000-8000-000000000001';
+const FAKE_JWT = 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.';
+const TIMEOUT_MS = 5000;
+const NOTE_FIELDS = /"content"\s*:|"body"\s*:|"title"\s*:/u;
+// 승인 전 화면에는 로그인 폼·메모 목록·메모 요청·브라우저 저장소 사용이 없어야 한다.
+const GATED_MARKERS = [['로그인 폼', /type=["']?password/iu], ['메모 목록', /id=["']notes["']/iu],
+  ['메모 요청', /\/api\/notes/u], ['브라우저 저장소', /localStorage|sessionStorage|indexedDB|document\.cookie/u]];
 
-  // 없는 id로 보내서, 보호가 풀려 있어도 실제 메모가 바뀌지 않게 한다. POST도 빈 본문이라 저장되지 않는다.
-  const missingId = crypto.randomUUID();
-  const now = Math.floor(Date.now() / 1000);
-
-  const data = await send(app, 'GET', '/data.json');
-  const listNoToken = await send(app, 'GET', '/api/notes');
-  const createNoToken = await send(app, 'POST', '/api/notes', { body: {} });
-  const itemGet = await send(app, 'GET', `/api/notes/${missingId}`);
-  const itemPut = await send(app, 'PUT', `/api/notes/${missingId}`, { body: { title: '점검' } });
-  const itemDelete = await send(app, 'DELETE', `/api/notes/${missingId}`);
-  const myList = await send(app, 'GET', '/api/my/notes');
-  const restoreNoToken = await send(app, 'POST', `/api/restore/${missingId}`, { body: {} });
-  const restoreForged = await send(app, 'POST', `/api/restore/${missingId}`, { token: forgedToken(issuer, {}), body: { owner_id: missingId } });
-  const recoveryPlan = await send(app, 'GET', '/api/recovery-plan');
-  const noticeList = await send(app, 'GET', '/api/notices');
-  const noticeGet = await send(app, 'GET', `/api/notices/${missingId}`);
-  const noticePut = await send(app, 'PUT', `/api/notices/${missingId}`, { body: { title: '점검' } });
-  const forged = await send(app, 'GET', '/api/notes', { token: forgedToken(issuer, {}) });
-  const expired = await send(app, 'GET', '/api/notes',
-    { token: forgedToken(issuer, { iat: now - 7200, exp: now - 3600 }) });
-  const otherService = await send(app, 'GET', '/api/notes',
-    { token: forgedToken(issuer, { aud: 'other-service' }) });
-
-  const aleph = await send(app, 'GET', '/aleph.json');
-  const page = await send(app, 'GET', '/');
-  const vaultPage = await send(app, 'GET', '/vault.html');
-  const deviceStatus = await send(app, 'GET', '/api/device/status');
-  const manifestLink = /<link[^>]+rel=["']manifest["'][^>]*href=["']([^"']+)["']/iu.exec(page.text ?? '')?.[1] ?? null;
-  const manifest = manifestLink ? await send(app, 'GET', manifestLink) : null;
-
-  // 화면에는 공개 키가 없으므로 직접 읽기 점검의 공개 키는 실행하는 사람이 환경 변수로 준다. 값은 어디에도 기록하지 않는다.
-  const publicKey = usablePublicKey(process.env.ALEPH_PUBLIC_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY);
-  const originalUrl = typeof config.originalApiUrl === 'string' ? config.originalApiUrl : null;
-  const anonRead = publicKey && originalUrl
-    ? await sendDirect(`${originalUrl}?select=id,title,content`, publicKey)
-    : null;
-
-  const routes = Array.isArray(aleph.json?.allowedRoutes) ? aleph.json.allowedRoutes : [];
-  const keyLike = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|sb_(?:publishable|secret)_[A-Za-z0-9_-]{8,}/gu;
-  const serverSecret = /sb_secret_|service_role|SUPABASE_SECRET_KEY/u;
-  const leaked = [['/', page], ['/data.json', data]].filter(([, file]) => serverSecret.test(file.text)
-    || (typeof config.sampleMarker === 'string' && file.text.includes(config.sampleMarker)));
-
-  // 승인 전 화면(첫 화면·자료실 화면)에는 로그인 폼·메모 목록·편집 화면·저장소 사용·메모 요청 코드가 없어야 한다.
-  const gatedMarkers = [['로그인 폼', /type=["']?password/iu], ['메모 목록', /id=["']notes["']/iu], ['메모 요청', /\/api\/notes/u],
-    ['브라우저 저장소', /localStorage|sessionStorage|indexedDB|document\.cookie/u]];
-  const gatedFound = (res) => gatedMarkers.filter(([, pattern]) => pattern.test(res.text)).map(([name]) => name);
-
-  const exposed = (Array.isArray(data.json?.notes) && data.json.notes.length > 0)
-    || (typeof config.sampleMarker === 'string' && data.text.includes(config.sampleMarker));
-  const items = [itemGet, itemPut, itemDelete];
-  const itemStatuses = `GET ${itemGet.status} · PUT ${itemPut.status} · DELETE ${itemDelete.status}`;
-
-  return [
-    {
-      attackId: 'data_json_notes_empty',
-      expected: '/data.json에 가상 메모와 확인 표시가 없어야 함',
-      observed: failedToSend(data)
-        ? `요청 실패(${data.status}) — 확인 못 함`
-        : exposed
-          ? `/data.json에 메모 또는 확인 표시가 남아 있음 (HTTP ${data.status})`
-          : `/data.json에 메모·확인 표시 없음 (HTTP ${data.status})`,
-    },
-    {
-      attackId: 'api_notes_list_no_token',
-      expected: '로그인 토큰 없이 메모 목록(/api/notes, /api/my/notes)과 메모 추가를 요청하면 모두 401로 거부되고 자료가 없어야 함',
-      observed: `목록: ${verdict(listNoToken)} · 내 목록: ${verdict(myList)} · 추가: ${verdict(createNoToken)}`,
-    },
-    {
-      attackId: 'api_notes_item_no_token',
-      expected: '로그인 토큰 없이 메모 한 건의 조회·수정·삭제를 요청하면 모두 401로 거부되어야 함',
-      observed: items.some(failedToSend)
-        ? `요청 실패 — ${itemStatuses}`
-        : items.every(rejected)
-          ? `${itemStatuses} — 모두 자료 없이 거부됨`
-          : `${itemStatuses} — 거부되지 않은 요청이 있음`,
-    },
-    {
-      attackId: 'api_notes_forged_token',
-      expected: '서명이 맞지 않는 위조 로그인 토큰은 401로 거부되어야 함',
-      observed: verdict(forged),
-    },
-    {
-      attackId: 'api_notes_expired_token',
-      expected: '만료 시각이 지난 로그인 토큰은 401로 거부되어야 함 (이 점검의 토큰은 서명도 틀림)',
-      observed: verdict(expired),
-    },
-    {
-      attackId: 'api_notes_wrong_audience_token',
-      expected: '다른 서비스용(대상이 다른) 로그인 토큰은 401로 거부되어야 함 (이 점검의 토큰은 서명도 틀림)',
-      observed: verdict(otherService),
-    },
-    {
-      attackId: 'api_restore_no_token',
-      expected: '로그인 토큰 없이, 또는 위조 토큰으로 복구 경로(POST /api/restore/:noteId)를 부르면 401로 거부되어야 함 (없는 id로 보내 실제 메모는 바뀌지 않음)',
-      observed: `토큰 없음: ${verdict(restoreNoToken)} · 위조 토큰: ${verdict(restoreForged)}`,
-    },
-    {
-      attackId: 'recovery_plan_verified',
-      expected: '검증한 안전 정책 사본을 다시 읽어 복원할 버전과 바뀔 범위를 보여 주고 아무것도 바꾸지 않아야 함 (GET /api/recovery-plan)',
-      observed: failedToSend(recoveryPlan)
-        ? `요청 실패(${recoveryPlan.status}) — 확인 못 함`
-        : recoveryPlan.json?.verified === true
-          ? `HTTP ${recoveryPlan.status}, 사본 검증됨, 복원 버전 ${recoveryPlan.json.restoreVersion}, 바뀔 항목 ${recoveryPlan.json.changes?.length ?? '?'}개`
-          : `HTTP ${recoveryPlan.status}, 사본 검증 안 됨(${recoveryPlan.json?.error ?? '응답 없음'})`,
-    },
-    {
-      attackId: 'api_notices_no_token',
-      expected: '로그인 토큰 없이 강사 공지 목록·한 건 조회와 수정을 요청하면 모두 401로 거부되어야 함 (수정은 없는 id로 보내 실제 공지는 바뀌지 않음)',
-      observed: `목록: ${verdict(noticeList)} · 한 건: ${verdict(noticeGet)} · 수정: ${verdict(noticePut)}`,
-    },
-    {
-      attackId: 'api_notice_student_write',
-      expected: '로그인한 일반 학생이 강사 공지를 수정하면 403으로 거부되고 공지는 그대로여야 함 (본문에 role을 넣어도 마찬가지)',
-      observed: '미실행 — 자동 점검에는 시험 계정 로그인 정보가 없어 보내지 않음',
-    },
-    {
-      attackId: 'aleph_json_allowed_routes',
-      expected: '/aleph.json의 allowedRoutes에 허용 경로가 하나 이상 있고 https로 시작하는 originalApiUrl(쿼리 없는 원본 자료 경로)이 있어야 함',
-      observed: failedToSend(aleph)
-        ? `요청 실패(${aleph.status}) — 확인 못 함`
-        : `/aleph.json에 허용 경로 ${routes.length}개, originalApiUrl ${typeof aleph.json?.originalApiUrl === 'string' && aleph.json.originalApiUrl.startsWith('https://') ? '있음' : '없음'} (HTTP ${aleph.status})`,
-    },
-    {
-      attackId: 'approval_screen_no_data_before_approval',
-      expected: '첫 화면(/)은 승인 화면이어야 하고, 승인 전에는 로그인 폼·메모 목록·메모 요청·브라우저 저장소 사용이 없어야 함',
-      observed: failedToSend(page)
-        ? `요청 실패(${page.status}) — 확인 못 함`
-        : gatedFound(page).length
-          ? `HTTP ${page.status} — 첫 화면에서 검출: ${gatedFound(page).join(', ')}`
-          : `HTTP ${page.status} — 첫 화면에 로그인 폼·메모 목록·메모 요청·저장소 사용 0건, 승인 안내 ${/기기 승인/u.test(page.text) ? '있음' : '없음'}`,
-    },
-    {
-      attackId: 'vault_screen_no_data_before_approval',
-      expected: '자료실 화면(/vault.html)은 서버가 승인하기 전에는 로그인 폼·메모 목록·메모 요청·브라우저 저장소 사용이 없어야 함 (자료실 화면 코드는 승인 뒤에만 불러옴)',
-      observed: failedToSend(vaultPage)
-        ? `요청 실패(${vaultPage.status}) — 확인 못 함`
-        : gatedFound(vaultPage).length
-          ? `HTTP ${vaultPage.status} — 자료실 화면에서 검출: ${gatedFound(vaultPage).join(', ')}`
-          : `HTTP ${vaultPage.status} — 자료실 화면에 로그인 폼·메모 목록·메모 요청·저장소 사용 0건`,
-    },
-    {
-      attackId: 'device_status_not_approved',
-      expected: '서버가 기기 승인을 확인할 수 없거나 승인하지 않았으면 승인 상태(GET /api/device/status)가 approved:false 이고, 승인 요청(POST)도 권한을 주지 않아야 함',
-      observed: failedToSend(deviceStatus)
-        ? `요청 실패(${deviceStatus.status}) — 확인 못 함`
-        : `HTTP ${deviceStatus.status}, approved ${String(deviceStatus.json?.approved)}, connected ${String(deviceStatus.json?.connected)}, 사유 ${deviceStatus.json?.reasonCode ?? '없음'}`,
-    },
-    {
-      attackId: 'manifest_installable_metadata',
-      expected: '첫 화면이 설치형 웹앱 설정(manifest)을 연결하고, 앱 이름·시작 주소·표시 방식·아이콘이 있어야 함 (설치 표시는 기기 승인이 아님)',
-      observed: !manifestLink
-        ? `첫 화면에 manifest 연결 없음 (HTTP ${page.status})`
-        : !manifest || failedToSend(manifest)
-          ? 'manifest 요청 실패 — 확인 못 함'
-          : `manifest HTTP ${manifest.status}, 이름 ${manifest.json?.name ? '있음' : '없음'}, 시작 주소 ${manifest.json?.start_url ?? '없음'}, 표시 ${manifest.json?.display ?? '없음'}, 아이콘 ${Array.isArray(manifest.json?.icons) ? manifest.json.icons.length : 0}개`,
-    },
-    {
-      attackId: 'page_no_public_key',
-      expected: '첫 화면 코드에 Supabase 공개 키가 없어야 함 (키는 서버 함수에만 둠)',
-      observed: failedToSend(page)
-        ? `요청 실패(${page.status}) — 확인 못 함`
-        : `첫 화면 코드에 키 모양 문자열 ${(page.text.match(keyLike) ?? []).length}개 (HTTP ${page.status})`,
-    },
-    {
-      attackId: 'public_files_no_server_key_or_seed',
-      expected: '공개 정적 파일(첫 화면, /data.json)에 서버 전용 키 이름·값과 시드 표식이 없어야 함',
-      observed: failedToSend(page) || failedToSend(data)
-        ? '요청 실패 — 확인 못 함'
-        : leaked.length
-          ? `${leaked.map(([path]) => path).join(', ')}에서 서버 전용 키 또는 시드 표식이 검출됨`
-          : '첫 화면과 /data.json에서 검출 0건',
-    },
-    {
-      attackId: 'data_api_anon_direct_read',
-      expected: '공개 키로 원본 자료 주소(originalApiUrl)를 직접 읽어도 메모 행이 한 건도 오지 않아야 함',
-      observed: !anonRead
-        ? '미실행 — 점검에 쓸 공개 키(환경 변수 ALEPH_PUBLIC_KEY)가 없음'
-        : failedToSend(anonRead)
-          ? `요청 실패(${anonRead.status}) — 확인 못 함`
-          : anonRead.rows > 0
-            ? `HTTP ${anonRead.status} — 메모 ${anonRead.rows}건이 직접 읽힘`
-            : `HTTP ${anonRead.status}, 메모 행 0건`,
-    },
-    {
-      attackId: 'api_notes_other_owner',
-      expected: '로그인한 B가 A의 메모를 조회·수정·삭제하면 403으로 거부되고 A의 메모는 그대로여야 함',
-      observed: '미실행 — 자동 점검에는 시험 계정 로그인 정보가 없어 보내지 않음',
-    },
-    {
-      attackId: 'login_normal_flow',
-      expected: '정상 A 로그인 뒤 본인 메모를 추가·수정·삭제할 수 있어야 함',
-      observed: '미실행 — 자동 점검에는 로그인 정보가 없어 보내지 않음',
-    },
-  ];
+function withTimeout(promise, ms) {
+  let timer;
+  const limit = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), ms); });
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
 }
 
-async function send(app, method, path, { token, body } = {}) {
+const base64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/gu, '-').replace(/\//gu, '_').replace(/=+$/u, '');
+const encode = (value) => base64url(new TextEncoder().encode(JSON.stringify(value)));
+
+// 점검할 때마다 새 키로 서명하고 바로 버리는 위조 토큰이다. 서버가 이 서명을 믿으면 안 된다. 발급자를 알 수 없으면 서명 없는 토큰을 쓴다.
+async function forgedToken(issuer) {
+  if (typeof issuer !== 'string') return FAKE_JWT;
   try {
-    const response = await fetch(new URL(path, app), {
+    const { privateKey } = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']);
+    const now = Math.floor(Date.now() / 1000);
+    const head = encode({ alg: 'ES256', typ: 'JWT', kid: 'attack-check' });
+    const body = encode({ iss: issuer, aud: 'authenticated', role: 'authenticated', sub: crypto.randomUUID(), iat: now, exp: now + 3600 });
+    const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, privateKey, new TextEncoder().encode(`${head}.${body}`));
+    return `${head}.${body}.${base64url(signature)}`;
+  } catch {
+    return FAKE_JWT;
+  }
+}
+
+// 요청 한 건. 응답 본문은 메모 필드가 있는지만 보고 기록하지 않는다. 요청 ID 는 응답의 x-vercel-id 끝 토큰(Vercel 기록의 Request ID 와 같다).
+async function probe(ctx, caseId, requestKey, path, { method = 'GET', headers = {}, body } = {}) {
+  const checkedAt = new Date().toISOString();
+  try {
+    const response = await withTimeout(ctx.fetch(new URL(path, ctx.base), {
       method,
-      redirect: 'error',
-      signal: AbortSignal.timeout(10000),
-      headers: {
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
-        ...(body ? { 'content-type': 'application/json' } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const text = await response.text();
+      redirect: 'manual',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: { accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}), ...headers },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      alephEvidence: { caseId, requestKey },
+    }), TIMEOUT_MS + 500);
+    const text = (await withTimeout(response.text(), TIMEOUT_MS)).slice(0, 60000);
     let json = null;
-    try { json = JSON.parse(text); } catch { /* 비정상 응답 */ }
-    return { status: String(response.status), json, text };
+    try { json = JSON.parse(text); } catch { /* 화면(HTML)이나 비정상 응답 */ }
+    const vercelId = response.headers?.get?.('x-vercel-id') ?? null;
+    return { ran: true, method, path, requestKey, checkedAt, status: response.status, text, json,
+      hasNotes: NOTE_FIELDS.test(text), requestId: vercelId ? vercelId.split('::').at(-1) : null };
   } catch (error) {
-    return { status: error.name === 'TimeoutError' ? 'timeout' : 'network_error', json: null, text: '' };
+    return { ran: false, method, path, requestKey, checkedAt, status: null, error: String(error?.message || error).slice(0, 80) };
   }
 }
 
-// 공개용 키(role이 anon인 JWT 또는 sb_publishable_)만 쓴다. 서버 전용 키가 잘못 들어오면 쓰지 않는다.
-function usablePublicKey(value) {
-  if (typeof value !== 'string') return null;
-  if (/^sb_publishable_[A-Za-z0-9_-]+$/u.test(value)) return value;
+const DENIED = new Set([401, 403, 404, 405, 503]);
+const denied = (r) => r.ran && DENIED.has(r.status) && !r.hasNotes;
+const gated = (r) => GATED_MARKERS.filter(([, pattern]) => pattern.test(r.text)).map(([name]) => name);
+const shown = (r) => (r.ran ? `HTTP ${r.status}` : `요청 실패(${r.error})`);
+
+function outcome(requests, check) {
+  if (!requests.length || requests.some((r) => !r.ran)) {
+    return { result: 'not_run', observed: requests.map(shown).join(' · ') || '요청을 보내지 못함' };
+  }
+  const { ok, note } = check(requests);
+  return { result: ok ? 'blocked' : 'breached', observed: [requests.map(shown).join(' · '), note].filter(Boolean).join('; ') };
+}
+
+// 규칙 점검: 서버가 고정된 가상 입력으로 판정기·탐지 규칙을 실행한 응답(ready)만 읽는다. 실제 사용자·기기 상태가 아니다.
+const ruleCase = (attackId, stage, expected) => ({
+  attackId, stage, kind: 'rule', expected,
+  async run(ctx) {
+    const r = await probe(ctx, attackId, 'rule', `/api/checks?case=${attackId}`);
+    if (!r.ran || r.status !== 200 || typeof r.json?.ready !== 'boolean') {
+      return { requests: [r], result: 'not_run', observed: r.ran ? `HTTP ${r.status}; 규칙 점검 응답을 읽지 못함` : shown(r) };
+    }
+    return { requests: [r], result: r.json.ready ? 'blocked' : 'breached', observed: `HTTP ${r.status}; ready=${r.json.ready}${r.json.decision ? `; decision=${r.json.decision}` : ''}${r.json.action ? `; action=${r.json.action}` : ''}` };
+  },
+});
+
+const denyCase = (attackId, stage, expected, plan) => ({
+  attackId, stage, kind: 'forbidden', expected,
+  async run(ctx) {
+    const requests = [];
+    for (const [key, path, options] of await plan(ctx)) requests.push(await probe(ctx, attackId, key, path, options));
+    return { requests, ...outcome(requests, (rs) => ({ ok: rs.every(denied), note: rs.every(denied) ? '자료 없이 거부됨' : '거부되지 않은 요청이 있음' })) };
+  },
+});
+
+async function issuerOf(ctx) {
+  if (typeof ctx.config?.identityProvider?.issuer === 'string') return ctx.config.identityProvider.issuer;
+  ctx.issuer ??= (async () => {
+    const r = await probe(ctx, 's03-fake-token', 'config', '/aleph.json');
+    return typeof r.json?.identityProvider?.issuer === 'string' ? r.json.identityProvider.issuer : null;
+  })();
+  return ctx.issuer;
+}
+
+export const CASES = [
+  {
+    attackId: 's01-static-notes', stage: 1, kind: 'forbidden', expected: '/data.json 에 메모가 없어야 함',
+    async run(ctx) {
+      const r = await probe(ctx, 's01-static-notes', 'read', '/data.json');
+      const marker = typeof ctx.config?.sampleMarker === 'string' && ctx.config.sampleMarker !== '' && r.text?.includes(ctx.config.sampleMarker);
+      return { requests: [r], ...outcome([r], (rs) => ({ ok: rs[0].status !== 500 && !rs[0].hasNotes && !(Array.isArray(rs[0].json?.notes) && rs[0].json.notes.length) && !marker, note: `메모 ${Array.isArray(r.json?.notes) ? r.json.notes.length : 0}건` })) };
+    },
+  },
+  denyCase('s02-static-copy', 2, '다른 정적 사본(/notes.json)이 없어야 함', () => [['read', '/notes.json']]),
+  denyCase('s03-unauth-list', 3, '로그인 없는 자기 목록 요청은 401 로 거부', () => [['read', '/api/my/notes']]),
+  denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 401 로 거부', async (ctx) => [['forged', '/api/my/notes', { headers: { authorization: `Bearer ${await forgedToken(await issuerOf(ctx))}` } }]]),
+  denyCase('s04-query-identity', 4, '쿼리로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => [['read', `/api/my/notes?userId=${TEST_UUID}&role=instructor`]]),
+  denyCase('s04-header-identity', 4, '헤더로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => [['read', '/api/my/notes', { headers: { 'x-user-id': TEST_UUID, 'x-role': 'instructor' } }]]),
+  denyCase('s05-direct-table', 5, '원본 자료 주소(/rest/v1/notes)를 이 주소로 직접 읽을 수 없어야 함', () => [['read', '/rest/v1/notes']]),
+  ruleCase('s06-unregistered', 6, '미등록 기기 요청은 판정기가 거부'),
+  ruleCase('s07-compound', 7, '복합 이상 요청은 판정기가 추가 확인(step_up)'),
+  ruleCase('s08-unknown-route', 8, '알 수 없는 경로는 판정기가 거부'),
+  ruleCase('s08-all-notes', 8, '모호한 전체 메모 목록 경로는 판정기가 거부'),
+  ruleCase('s08-write-notice', 8, '강사 공지 쓰기는 판정기가 거부'),
+  ruleCase('s09-burst-read', 9, '조회 폭주 사건은 탐지 규칙이 회수 제안(propose_revocation)'),
+  denyCase('s10-restore-unauth', 10, '로그인 없는 복구 요청(POST /api/restore/:noteId)은 401 로 거부', () => [['read', `/api/restore/${TEST_UUID}`, { method: 'POST', body: {} }]]),
+  {
+    attackId: 's10-policy-copy', stage: 10, kind: 'normal', expected: '검증한 안전 정책 사본을 다시 읽어 복원할 버전과 바뀔 범위를 보여 줘야 함(읽기 전용)',
+    async run(ctx) {
+      const r = await probe(ctx, 's10-policy-copy', 'read', '/api/recovery-plan');
+      return { requests: [r], ...outcome([r], ([x]) => ({ ok: x.status === 200 && x.json?.verified === true, note: `verified=${String(x.json?.verified)}; 복원 버전 ${x.json?.restoreVersion ?? '없음'}; 바뀔 항목 ${x.json?.changes?.length ?? '?'}개` })) };
+    },
+  },
+  {
+    attackId: 's11-approval-screen', stage: 11, kind: 'normal', expected: '첫 화면(/)은 manifest 가 연결된 승인 화면이고, 승인 전 첫 화면과 /vault.html 에는 로그인 폼·메모 목록·메모 요청·저장소 사용이 없어야 함',
+    async run(ctx) {
+      const home = await probe(ctx, 's11-approval-screen', 'home', '/', { headers: { accept: 'text/html' } });
+      const vault = await probe(ctx, 's11-approval-screen', 'vault', '/vault.html', { headers: { accept: 'text/html' } });
+      return { requests: [home, vault], ...outcome([home, vault], ([h, v]) => {
+        const found = [...gated(h), ...gated(v)];
+        const manifest = /rel=["']manifest["']/iu.test(h.text) && /기기 승인/u.test(h.text);
+        return { ok: h.status === 200 && v.status === 200 && !found.length && manifest, note: found.length ? `검출: ${found.join(', ')}` : `승인 화면 manifest ${manifest ? '있음' : '없음'}, 로그인 폼·메모 목록·메모 요청·저장소 사용 0건` };
+      }) };
+    },
+  },
+  {
+    attackId: 's11-device-status', stage: 11, kind: 'normal', expected: '서버가 확인하지 못한 기기는 승인 상태가 approved:false 이고, 로그인 없는 승인 요청도 권한을 주지 않아야 함',
+    async run(ctx) {
+      const status = await probe(ctx, 's11-device-status', 'status', '/api/device/status');
+      const request = await probe(ctx, 's11-device-status', 'approval', '/api/device/approval', { method: 'POST', body: {} });
+      return { requests: [status, request], ...outcome([status, request], ([s, a]) => ({
+        ok: s.status === 200 && typeof s.json?.approved === 'boolean' && !s.hasNotes && !(a.status >= 200 && a.status < 300 && a.json?.approved === true),
+        note: `approved=${String(s.json?.approved)}; connected=${String(s.json?.connected)}; 승인 요청 ${a.status}` })) };
+    },
+  },
+  {
+    attackId: 's12-operations-screen', stage: 12, kind: 'normal', expected: '작전실 화면(/operations.html)에 로그인 폼·메모 목록·메모 요청·저장소 사용과 성공 문구가 없어야 함',
+    async run(ctx) {
+      const r = await probe(ctx, 's12-operations-screen', 'read', '/operations.html', { headers: { accept: 'text/html' } });
+      return { requests: [r], ...outcome([r], ([x]) => {
+        const found = gated(x);
+        return { ok: x.status === 200 && !found.length && !/통과했습니다|모두 막았습니다|방어 성공/u.test(x.text), note: found.length ? `검출: ${found.join(', ')}` : '화면 코드에 로그인 폼·메모 목록·메모 요청·저장소 사용·성공 문구 0건' };
+      }) };
+    },
+  },
+  denyCase('s12-combined-attack', 12, '무인증 조회·타인 메모 조회·서명 없는 변경·복구 요청·구역 밖 조회를 연속으로 보내도 모두 자료 없이 거부', () => [
+    ['list', '/api/my/notes'],
+    ['other-note-get', `/api/notes/${TEST_UUID}`],
+    ['unsigned-put', `/api/notes/${TEST_UUID}`, { method: 'PUT', body: { title: '점검' } }],
+    ['restore', `/api/restore/${TEST_UUID}`, { method: 'POST', body: {} }],
+    ['out-of-zone', '/api/notices'],
+  ]),
+  {
+    attackId: 's04-logged-in-cases', stage: 4, kind: 'logged_in', expected: '로그인한 B 가 A 의 메모를 조회·수정하면 거부되고, 승인된 기기의 A 가 자기 메모를 쓰는 정상 요청은 허용되어야 함',
+    async run() {
+      return { requests: [], result: 'not_run', observed: '미실행: 시험 계정 A·B 로그인 정보와 승인된 기기가 없어 보내지 않음' };
+    },
+  },
+];
+
+const MAX_ATTEMPTS = 20;
+
+// 사례별 요청·응답을 모두 담은 관측. 작전실 화면이 이 값을 그대로 쓴다. skip 은 건너뛸 사례 ID.
+export async function observeAll(input, { fetch: fetchImpl = (...args) => globalThis.fetch(...args), skip = [] } = {}) {
+  const config = input !== null && typeof input === 'object' ? input : null;
+  const baseUrl = typeof input === 'string' ? input : config?.publicAppUrl;
+  let base;
   try {
-    return JSON.parse(Buffer.from(value.split('.')[1], 'base64url')).role === 'anon' ? value : null;
+    base = new URL(baseUrl);
   } catch {
-    return null;
+    throw new Error('배포 주소가 올바르지 않습니다.');
   }
-}
-
-// 메모 내용은 기록하지 않고 행 수만 센다.
-async function sendDirect(url, anonKey) {
-  try {
-    const response = await fetch(url, {
-      redirect: 'error',
-      signal: AbortSignal.timeout(10000),
-      headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` },
+  if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || base.pathname !== '/') {
+    throw new Error('배포 주소는 https 주소여야 합니다.');
+  }
+  const ctx = { base, fetch: fetchImpl, config };
+  const rows = [];
+  for (const item of CASES.filter((c) => !skip.includes(c.attackId))) {
+    const measured = await item.run(ctx);
+    rows.push({
+      attackId: item.attackId, stage: item.stage, kind: item.kind, expected: item.expected,
+      observed: measured.observed.slice(0, 300), result: measured.result,
+      requests: measured.requests.map(({ method, path, requestKey, status, requestId, checkedAt }) => ({ method, path, requestKey, status, requestId, checkedAt })),
     });
-    const json = await response.json().catch(() => null);
-    return { status: String(response.status), rows: Array.isArray(json) ? json.length : 0 };
-  } catch (error) {
-    return { status: error.name === 'TimeoutError' ? 'timeout' : 'network_error', rows: 0 };
   }
+  return rows.sort((a, b) => a.stage - b.stage);
 }
 
-const failedToSend = (res) => res.status === 'timeout' || res.status === 'network_error';
-
-// 메모 내용은 기록하지 않고, 자료가 응답에 실렸는지만 판단한다.
-const leaksData = (json) => (Array.isArray(json) && json.length > 0)
-  || (Array.isArray(json?.notes) && json.notes.length > 0)
-  || typeof json?.title === 'string' || typeof json?.id === 'string';
-
-const rejected = (res) => res.status === '401' && !leaksData(res.json);
-
-const verdict = (res) => {
-  if (failedToSend(res)) return `요청 실패(${res.status}) — 거부 여부 확인 못 함`;
-  if (rejected(res)) return 'HTTP 401, 자료 없이 거부됨';
-  return `HTTP ${res.status} — 거부되지 않음${leaksData(res.json) ? ', 응답에 자료가 있음' : ''}`;
-};
-
-// 점검할 때마다 새 키로 서명하고 바로 버리는 위조 토큰이다. 서버가 이 서명을 믿으면 안 된다.
-function forgedToken(issuer, claims) {
-  const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
-  const now = Math.floor(Date.now() / 1000);
-  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const head = encode({ alg: 'ES256', typ: 'JWT', kid: 'attack-check' });
-  const body = encode({
-    iss: issuer, aud: 'authenticated', role: 'authenticated',
-    sub: crypto.randomUUID(), iat: now, exp: now + 3600, ...claims,
-  });
-  const signature = crypto.sign('sha256', Buffer.from(`${head}.${body}`),
-    { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url');
-  return `${head}.${body}.${signature}`;
+// 설정 객체나 배포 주소 문자열을 받는다. 결과는 {attackId, stage, expected, observed, result} 다섯 값뿐이다.
+export async function runAttackChecks(input) {
+  const rows = await observeAll(input);
+  return rows.slice(0, MAX_ATTEMPTS).map(({ attackId, stage, expected, observed, result }) => ({ attackId, stage, expected, observed, result }));
 }

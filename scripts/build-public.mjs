@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { deploymentIdentity } from './deployment-identity.mjs';
+import { publicConfig } from './public-config.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const source = resolve(root, 'data.json');
@@ -13,6 +14,9 @@ if (!Array.isArray(data.notes)) {
 await mkdir(resolve(root, 'public'), { recursive: true });
 await copyFile(source, output);
 console.log('실습용 공개 자료를 public/data.json에 복사했습니다.');
+await writeFile(resolve(root, 'public', 'aleph.config.json'),
+  `${JSON.stringify(publicConfig(config), null, 2)}\n`, 'utf8');
+console.log('공개 설정 사본을 public/aleph.config.json에 기록했습니다.');
 if (!process.argv.includes('--local')) {
   const identity = deploymentIdentity(process.env, config);
   await writeFile(resolve(root, 'public', 'aleph.json'),

@@ -12,7 +12,9 @@
     "fixture:7": "node scripts/fixture-7.mjs",
     "xdr:run": "node scripts/xdr-run.mjs",
     "policy:plan": "node scripts/policy-recovery.mjs plan",
-    "policy:restore": "node scripts/policy-recovery.mjs restore"
+    "policy:restore": "node scripts/policy-recovery.mjs restore",
+    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/bundle.mjs"
   },
   "engines": {
     "node": ">=22"

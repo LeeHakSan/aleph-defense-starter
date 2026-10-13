@@ -1,0 +1,448 @@
+{
+  "schema": "aleph.attack-matrix.v1",
+  "source": "BYTE BACK 도감(41종)과 8~12단계 카드에서 옮긴 이름·공격. 실행 결과가 아니라 시험 계획표다.",
+  "rule": "status 는 이 저장소의 점검이 그 공격을 그대로 재현해 관측했을 때만 executed 로 바꾼다. 부분만 보냈거나 보내지 못했으면 not_run 으로 두고, 이 파일의 값은 작전실이 성공 근거로 읽지 않는다.",
+  "attacks": [
+    {
+      "no": 1,
+      "name": "나주반달곰탕",
+      "region": "나주",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 2,
+      "name": "삶은소보로",
+      "region": "대전",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 3,
+      "name": "하동케첩국",
+      "region": "하동",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 4,
+      "name": "맛간고등어",
+      "region": "안동",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 5,
+      "name": "초당취두부",
+      "region": "강릉",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 6,
+      "name": "포동포동남포동고래고기",
+      "region": "부산",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 7,
+      "name": "횡성투마이너스한우",
+      "region": "횡성",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 8,
+      "name": "짜장면목없음",
+      "region": "인천",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 9,
+      "name": "의정부속부대끼는찌개",
+      "region": "의정부",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 10,
+      "name": "메밀면피",
+      "region": "평창",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 11,
+      "name": "안비벼지는비빔밥",
+      "region": "전주",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 12,
+      "name": "돌아이하르방",
+      "region": "제주",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 13,
+      "name": "공주딱밤",
+      "region": "공주",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 14,
+      "name": "영덕대게이트",
+      "region": "영덕",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 15,
+      "name": "과메기억상실",
+      "region": "포항",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 16,
+      "name": "남원추어요",
+      "region": "남원",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 17,
+      "name": "나태한해태",
+      "region": "서울",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 18,
+      "name": "의성6쪽마누라",
+      "region": "의성",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 19,
+      "name": "김보성녹차",
+      "region": "보성",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 20,
+      "name": "청양후추",
+      "region": "청양",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 21,
+      "name": "금산산삼",
+      "region": "금산",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 22,
+      "name": "조치원복슬복슬아",
+      "region": "조치원",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 23,
+      "name": "울산흔들바지",
+      "region": "울산",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 24,
+      "name": "순창된장고추장",
+      "region": "순창",
+      "stage": null,
+      "attack": null,
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "도감에서 이름만 옮겼다. 단계와 공격 내용은 이 표에 옮기지 않았고 이 저장소에서 따로 실행하지 않았다."
+    },
+    {
+      "no": 25,
+      "name": "갓김치사량",
+      "region": "여수",
+      "stage": 8,
+      "attack": "다른 구역 메모를 API로 조회",
+      "status": "not_run",
+      "relatedCases": [
+        "s12-combined-attack"
+      ],
+      "note": "로그인한 B 가 A 의 메모를 조회하는 요청이 필요하다. 이 점검은 로그인 없는 조회와 가상 규칙만 보냈다."
+    },
+    {
+      "no": 26,
+      "name": "충무공김밥",
+      "region": "통영",
+      "stage": 8,
+      "attack": "다른 구역 메모를 API로 수정",
+      "status": "not_run",
+      "relatedCases": [
+        "s12-combined-attack"
+      ],
+      "note": "로그인한 B 가 A 의 메모를 수정하는 요청이 필요하다. 이 점검은 로그인 없는 수정만 보냈다."
+    },
+    {
+      "no": 27,
+      "name": "성주참외롭다",
+      "region": "성주",
+      "stage": 8,
+      "attack": "다른 구역의 메모 목록을 API로 조회",
+      "status": "not_run",
+      "relatedCases": [
+        "s08-all-notes",
+        "s03-unauth-list"
+      ],
+      "note": "로그인한 B 의 목록에 A 의 메모가 섞이는지는 로그인이 필요하다."
+    },
+    {
+      "no": 28,
+      "name": "경주화남빵",
+      "region": "경주",
+      "stage": 8,
+      "attack": "학생 시험 계정으로 강사 공지 수정",
+      "status": "not_run",
+      "relatedCases": [
+        "s08-write-notice",
+        "s12-combined-attack"
+      ],
+      "note": "로그인한 학생 계정이 필요하다. 이 점검은 판정기 가상 규칙과 로그인 없는 공지 요청만 보냈다."
+    },
+    {
+      "no": 29,
+      "name": "대구막창드라마",
+      "region": "대구",
+      "stage": 9,
+      "attack": "합성 도플갱어 접속 사건을 기록과 탐지기에 입력",
+      "status": "not_run",
+      "relatedCases": [
+        "s09-burst-read"
+      ],
+      "note": "탐지 함수는 가상 사건으로 시험했다. 반 엔진이 사건을 기록하고 전달하는 경로는 연결하지 못했다."
+    },
+    {
+      "no": 30,
+      "name": "제주흑돈까스",
+      "region": "제주",
+      "stage": 9,
+      "attack": "회수된 신원으로 다음 요청을 재시도",
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "회수는 반 엔진이 집행한다. 이 저장소에는 회수 연결이 없어 실행하지 못했다."
+    },
+    {
+      "no": 31,
+      "name": "나폴리맛소금",
+      "region": "지역 미정",
+      "stage": 9,
+      "attack": "회수 뒤 남은 탈취 세션으로 재접속",
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "회수는 반 엔진이 집행한다. 이 저장소에는 회수 연결이 없어 실행하지 못했다."
+    },
+    {
+      "no": 32,
+      "name": "개발세발낙지",
+      "region": "목포",
+      "stage": 9,
+      "attack": "회수된 도플갱어가 다른 자원으로 이동",
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "회수는 반 엔진이 집행한다. 이 저장소에는 회수 연결이 없어 실행하지 못했다."
+    },
+    {
+      "no": 33,
+      "name": "닭크웹",
+      "region": "춘천",
+      "stage": 10,
+      "attack": "시험 계정 B의 메모를 변조한 뒤 학생이 제출한 복구 경로를 호출",
+      "status": "not_run",
+      "relatedCases": [
+        "s10-restore-unauth"
+      ],
+      "note": "로그인한 시험 계정 B 로 변조·복구를 보내야 한다. DB 에서 가상 메모로 시험했고 배포 주소에서는 로그인 없는 복구 요청만 보냈다."
+    },
+    {
+      "no": 34,
+      "name": "동래해물피자",
+      "region": "부산",
+      "stage": 10,
+      "attack": "시험 계정 B의 메모를 삭제한 뒤 학생이 제출한 복구 경로를 호출",
+      "status": "not_run",
+      "relatedCases": [
+        "s10-restore-unauth"
+      ],
+      "note": "로그인한 시험 계정 B 로 삭제·복구를 보내야 한다. DB 에서 가상 메모로 시험했고 배포 주소에서는 로그인 없는 복구 요청만 보냈다."
+    },
+    {
+      "no": 35,
+      "name": "속초꼴뚜기순대",
+      "region": "속초",
+      "stage": 10,
+      "attack": "시험 계정 B의 자료를 복구한 직후 1~9단계 대표 공격을 다시 전송",
+      "status": "not_run",
+      "relatedCases": [
+        "s03-unauth-list",
+        "s04-query-identity",
+        "s05-direct-table",
+        "s12-combined-attack"
+      ],
+      "note": "복구 직후 재전송은 로그인한 B 의 복구가 필요하다. 로그인 없는 대표 공격만 보냈다."
+    },
+    {
+      "no": 36,
+      "name": "대구두꺼운만두",
+      "region": "대구",
+      "stage": 11,
+      "attack": "설치형 앱 서명 없이 보호 요청",
+      "status": "not_run",
+      "relatedCases": [
+        "s12-combined-attack",
+        "s11-device-status"
+      ],
+      "note": "서명 확인은 제공 엔진의 몫이다. 서명 없는 요청이 자료를 받지 못하는지만 확인했고 서명 검증을 구현하지 않았다."
+    },
+    {
+      "no": 37,
+      "name": "호박엿장수마음대로",
+      "region": "울릉",
+      "stage": 11,
+      "attack": "서명 뒤 요청 경로를 변경",
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "서명을 만들 수 없어 실행하지 못했다. 어떤 요청도 승인되지 않으므로 자료는 나오지 않지만 서명 변조 시험은 아니다."
+    },
+    {
+      "no": 38,
+      "name": "부산돼지미역국밥",
+      "region": "부산",
+      "stage": 11,
+      "attack": "서명 뒤 수정 본문을 변경",
+      "status": "not_run",
+      "relatedCases": [],
+      "note": "서명을 만들 수 없어 실행하지 못했다. 어떤 요청도 승인되지 않으므로 자료는 나오지 않지만 서명 변조 시험은 아니다."
+    },
+    {
+      "no": 39,
+      "name": "1첩반상",
+      "region": "광주",
+      "stage": 12,
+      "attack": "무인증 조회와 타인 메모 조회를 같은 제출본에 연속 전송",
+      "status": "not_run",
+      "relatedCases": [
+        "s12-combined-attack"
+      ],
+      "note": "무인증 연속 요청은 보냈다. 타인 메모 조회는 로그인한 계정이 필요해 보내지 않았다."
+    },
+    {
+      "no": 40,
+      "name": "천안호날두과자",
+      "region": "천안",
+      "stage": 12,
+      "attack": "미등록 기기 요청 뒤 회수된 신원으로 다시 전송",
+      "status": "not_run",
+      "relatedCases": [
+        "s06-unregistered"
+      ],
+      "note": "미등록 기기 판정은 가상 규칙으로 시험했다. 회수된 신원의 재전송은 회수 연결이 없어 실행하지 못했다."
+    },
+    {
+      "no": 41,
+      "name": "양양송이버섯고양이",
+      "region": "양양",
+      "stage": 12,
+      "attack": "복구 뒤 서명 없는 변경 요청과 구역 밖 조회를 전송",
+      "status": "not_run",
+      "relatedCases": [
+        "s12-combined-attack",
+        "s10-restore-unauth"
+      ],
+      "note": "로그인 없는 변경·구역 밖 조회는 보냈다. 복구 뒤라는 조건과 서명은 재현하지 못했다."
+    }
+  ]
+}
