@@ -30,6 +30,10 @@
     .banner { margin: 18px 0 0; padding: 12px 16px; border-radius: 10px; border: 1px solid #d0a56e; background: #5a43212e; color: #ffe9c7; font-size: 15px; }
     .note { font-size: 15px; color: #9fb4cc; }
     .hidden { display: none !important; }
+    #ops-stats, #ops-sources { display: grid; grid-template-columns: max-content auto; gap: 4px 14px; margin: 12px 0; font-size: 15px; }
+    #ops-stats dd, #ops-sources dd { margin: 0; }
+    #ops-stats dd { font-weight: 700; }
+    #ops-sources dt { font-weight: 700; }
   </style>
 </head>
 <body>
@@ -52,7 +56,22 @@
     </section>
 
     <p class="note">자료실 열기는 서버가 이 기기를 승인했다고 확인한 뒤에만 켜집니다. 이 화면은 로그인 정보나 기기 키를 브라우저에 저장하지 않습니다.</p>
-    <p class="note"><a href="/operations.html" style="color:#8ad8df">탈환 작전실</a>에서 서버가 실제로 관측한 점검 결과를 볼 수 있습니다.</p>
+    <section class="card" id="ops" aria-labelledby="ops-title" aria-live="polite">
+      <h2 id="ops-title">탈환 작전실</h2>
+      <p class="note">아래 수치는 서버 점검 기록(<code>/api/checks</code>)을 그대로 옮긴 값입니다. 서버가 <code>npm run bundle</code>과 같은 점검을 이 배포에 실제로 보내 센 결과이며, 기록을 읽지 못하면 수치를 비워 둡니다. 화면의 문구는 판정의 근거가 아닙니다.</p>
+      <dl id="ops-sources">
+        <dt>학생이 만든 것</dt><dd id="src-student">-</dd>
+        <dt>제공 엔진</dt><dd id="src-engine">-</dd>
+      </dl>
+      <dl id="ops-stats">
+        <dt>점검 항목</dt><dd data-k="total">-</dd>
+        <dt>막은 공격</dt><dd data-k="blocked">-</dd>
+        <dt>뚫린 공격</dt><dd data-k="failed">-</dd>
+        <dt>실행하지 않은 점검</dt><dd data-k="notRun">-</dd>
+      </dl>
+      <p class="note" id="ops-meta"></p>
+      <p class="note"><a href="/operations.html" style="color:#8ad8df">탈환 작전실 전체 화면</a>에서 점검 줄마다 요청 ID와 확인 시각을 볼 수 있습니다.</p>
+    </section>
   </main>
 
   <script type="module">
@@ -124,7 +143,28 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
     if (!navigator.onLine) offlineEl.classList.remove('hidden');
 
+    // 서버 점검 기록: /api/checks 가 돌려준 수치를 계산하지 않고 그대로 옮긴다. 읽지 못하면 비워 둔다.
+    async function loadServerRecord() {
+      const meta = $('ops-meta');
+      try {
+        const response = await fetch('/api/checks', { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok || !Number.isInteger(data?.total)) throw new Error('record_unavailable');
+        for (const dd of document.querySelectorAll('#ops-stats dd')) {
+          const value = data[dd.dataset.k];
+          dd.textContent = Number.isInteger(value) ? String(value) : '-';
+        }
+        $('src-student').textContent = (data.sources?.student?.parts ?? []).join(', ') || '-';
+        $('src-engine').textContent = data.sources?.engine ? `${data.sources.engine.name} — ${data.sources.engine.role}` : '-';
+        meta.textContent = `기록 시각 ${data.checkedAt ?? '-'} · 검사한 커밋 ${String(data.commit ?? '-').slice(0, 12)}`;
+      } catch {
+        for (const dd of document.querySelectorAll('#ops-stats dd')) dd.textContent = '-';
+        meta.textContent = '서버 점검 기록을 읽지 못했습니다. 수치를 표시하지 않습니다.';
+      }
+    }
+
     refresh();
+    loadServerRecord();
     setInterval(refresh, 30000);
   </script>
 </body>

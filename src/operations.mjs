@@ -2,6 +2,7 @@ import { RULE_IDS } from './decider.mjs';
 import { observeAll, observeScreens } from './attack-check.mjs';
 import { detectionSummary } from './rule-check.mjs';
 import { loadRecoveryPlan } from './policy-files.mjs';
+import { SOURCES } from './sources.mjs';
 import config from '../aleph.config.json' with { type: 'json' };
 
 // 작전실 화면이 읽는 실제 관측. 이 배포에 지금 요청을 보내 얻은 응답 상태·요청 ID·확인 시각만 담고, 화면의 문구는 통과 근거가 아니다.
@@ -35,6 +36,7 @@ async function observe() {
     // 운영 측 표본의 /api/checks 와 같은 최상위 수치: total·blocked·notRun·failed(뚫림). 같은 이름의 다른 수는 응답 어디에도 두지 않는다.
     total: rows.length, blocked: count(rows, 'blocked'), notRun: count(rows, 'not_run'), failed: count(rows, 'breached'),
     // 제출 묶음의 attackAttempts 와 같은 다섯 값. 위 수치는 이 목록만 센 것이다.
+    sources: SOURCES,
     attempts: rows.map(({ attackId, stage, expected, observed, result }) => ({ attackId, stage, expected, observed, result })),
     rows,
     screens,

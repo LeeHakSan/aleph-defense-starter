@@ -285,3 +285,36 @@ test('작전실 화면·README·제출 설명에서 41종과 통과·막음이 �
   const html = await read('public/operations.html');
   assert.doesNotMatch(html.replace('위 표에 없는 공격을 통과로 적지 않습니다', ''), /통과/u);
 });
+
+test('첫 화면에도 작전실 수치 4개와 출처 표가 있고, 서버 점검 기록을 계산 없이 옮기며 승인 화면의 제한은 그대로다', async () => {
+  const html = await read('public/index.html');
+  for (const label of ['점검 항목', '막은 공격', '뚫린 공격', '실행하지 않은 점검']) assert.match(html, new RegExp(`<dt>${label}</dt>`, 'u'));
+  for (const key of ['total', 'blocked', 'failed', 'notRun']) assert.match(html, new RegExp(`data-k="${key}"`, 'u'));
+  assert.match(html, /fetch\('\/api\/checks'/u);
+  assert.match(html, /!Number\.isInteger\(data\?\.total\)/u);
+  assert.match(html, /<dt>학생이 만든 것<\/dt>/u);
+  assert.match(html, /<dt>제공 엔진<\/dt>/u);
+  // 11단계 제한: 승인 전 화면에는 로그인 폼·메모 목록·메모 요청·브라우저 저장소가 없다.
+  assert.doesNotMatch(html, /type=["']?password/iu);
+  assert.doesNotMatch(html, /id=["']notes["']/u);
+  assert.doesNotMatch(html, /\/api\/notes/u);
+  assert.doesNotMatch(html, /localStorage|sessionStorage|indexedDB|document\.cookie/u);
+  assert.doesNotMatch(html, /innerHTML|insertAdjacentHTML|eval\(/u);
+});
+
+test('점검 기록에 학생 몫과 제공 엔진(ALEPH SDP 엔진)의 출처가 붙는다', async () => {
+  const { SOURCES, ENGINE } = await import('../src/sources.mjs');
+  assert.equal(ENGINE, 'ALEPH SDP 엔진');
+  assert.equal(SOURCES.engine.name, ENGINE);
+  assert.ok(SOURCES.student.parts.some(part => part.includes('src/decider.mjs')));
+  assert.match(SOURCES.engine.role, /미실행/u);
+  const { operationsStatus } = await import('../src/operations.mjs');
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ ready: true }), { status: 401 });
+  try {
+    const record = await operationsStatus({ now: 20_000_000 });
+    assert.deepEqual(record.sources, SOURCES);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
