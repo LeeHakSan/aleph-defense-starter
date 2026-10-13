@@ -12,5 +12,8 @@
         { "key": "X-XSS-Protection", "value": "1; mode=block" }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/recovery-plan/index.js": { "includeFiles": "{backups,policy}/**" }
+  }
 }

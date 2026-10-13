@@ -1,0 +1,14 @@
+{
+  "schema": "aleph.safe-policy.v1",
+  "project": "choi-bujang-secret-vault",
+  "version": 1,
+  "verifiedAt": "2026-10-13",
+  "note": "침해 전에 검증한 notes 서비스 안전 정책 사본. 가상 자료실의 읽기 구역만 열고 엔진을 거치는 쓰기는 거부한다.",
+  "services": {
+    "notes": {
+      "readRoutes": ["GET /api/my/notes", "GET /api/notes/:id", "GET /notes/:id"],
+      "engineWrites": "deny",
+      "ruleIds": ["device_registered", "step_up_required", "resource_zones", "route_not_allowed", "write_not_allowed"]
+    }
+  }
+}

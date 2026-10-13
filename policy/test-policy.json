@@ -1,0 +1,17 @@
+{
+  "schema": "aleph.test-policy.v1",
+  "version": 1,
+  "services": {
+    "notes": {
+      "readRoutes": ["GET /api/my/notes", "GET /api/notes/:id", "GET /notes/:id"],
+      "engineWrites": "deny",
+      "ruleIds": ["device_registered", "step_up_required", "resource_zones", "route_not_allowed", "write_not_allowed"]
+    },
+    "detect": {
+      "ruleIds": ["burst_read"],
+      "limit": 120,
+      "windowMinutes": 10
+    }
+  },
+  "auditLog": []
+}

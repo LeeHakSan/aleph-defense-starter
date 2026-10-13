@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (config.step !== 9) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (config.step !== 10) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
     app = new URL(config.publicAppUrl);
@@ -28,6 +28,9 @@ export async function runAttackChecks(config) {
   const itemPut = await send(app, 'PUT', `/api/notes/${missingId}`, { body: { title: '점검' } });
   const itemDelete = await send(app, 'DELETE', `/api/notes/${missingId}`);
   const myList = await send(app, 'GET', '/api/my/notes');
+  const restoreNoToken = await send(app, 'POST', `/api/restore/${missingId}`, { body: {} });
+  const restoreForged = await send(app, 'POST', `/api/restore/${missingId}`, { token: forgedToken(issuer, {}), body: { owner_id: missingId } });
+  const recoveryPlan = await send(app, 'GET', '/api/recovery-plan');
   const noticeList = await send(app, 'GET', '/api/notices');
   const noticeGet = await send(app, 'GET', `/api/notices/${missingId}`);
   const noticePut = await send(app, 'PUT', `/api/notices/${missingId}`, { body: { title: '점검' } });
@@ -106,6 +109,20 @@ export async function runAttackChecks(config) {
       attackId: 'api_my_notes_no_token',
       expected: '로그인 토큰 없이 자기 메모 목록(/api/my/notes)을 요청하면 401로 거부되어야 함',
       observed: verdict(myList),
+    },
+    {
+      attackId: 'api_restore_no_token',
+      expected: '로그인 토큰 없이, 또는 위조 토큰으로 복구 경로(POST /api/restore/:noteId)를 부르면 401로 거부되어야 함 (없는 id로 보내 실제 메모는 바뀌지 않음)',
+      observed: `토큰 없음: ${verdict(restoreNoToken)} · 위조 토큰: ${verdict(restoreForged)}`,
+    },
+    {
+      attackId: 'recovery_plan_verified',
+      expected: '검증한 안전 정책 사본을 다시 읽어 복원할 버전과 바뀔 범위를 보여 주고 아무것도 바꾸지 않아야 함 (GET /api/recovery-plan)',
+      observed: failedToSend(recoveryPlan)
+        ? `요청 실패(${recoveryPlan.status}) — 확인 못 함`
+        : recoveryPlan.json?.verified === true
+          ? `HTTP ${recoveryPlan.status}, 사본 검증됨, 복원 버전 ${recoveryPlan.json.restoreVersion}, 바뀔 항목 ${recoveryPlan.json.changes?.length ?? '?'}개`
+          : `HTTP ${recoveryPlan.status}, 사본 검증 안 됨(${recoveryPlan.json?.error ?? '응답 없음'})`,
     },
     {
       attackId: 'api_notices_no_token',
