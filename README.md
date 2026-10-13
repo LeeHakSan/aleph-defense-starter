@@ -18,7 +18,7 @@
 
 로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. 저장소의 `src/attack-check.mjs`는 `npm run bundle`이 실행하는 자기 점검으로, 실제 배포 주소에 로그인 없는 요청·위조 토큰 요청·공개용 `anon` 키 직접 요청을 보내 결과만 기록합니다.
 
-## 현재 작동하는 기능 (6단계)
+## 현재 작동하는 기능 (7단계)
 
 - `/`: 이메일·비밀번호 로그인과 로그아웃. 로그인하면 본인 계정으로 가상 메모를 추가·수정·삭제하는 화면이 보입니다. 화면은 서버 함수(`/api/*`)만 부르고, 화면 코드에는 Supabase 주소·공개 키·외부 라이브러리가 없습니다.
 - `POST /api/auth/login`·`/refresh`·`/logout`: 서버가 Supabase Auth를 공개 키(서버 환경 변수 `SUPABASE_PUBLISHABLE_KEY`)로 대신 부르고, 화면에는 로그인 토큰·갱신 토큰·만료 시각·사용자 ID·이메일만 돌려줍니다. 틀린 정보는 401(`LOGIN_FAILED`), 공개 키 설정 문제는 503(`AUTH_MISCONFIGURED`)입니다. 화면은 토큰이 만료되면 알아서 갱신하고, 갱신이 안 되면 로그아웃 상태로 돌아갑니다.
@@ -27,6 +27,8 @@
 - `/data.json`: 메모 없이 `{"notes":[]}`만 공개합니다. `/aleph.json`: 빌드가 단계·커밋·주소와 허용 경로(`allowedRoutes` 8개), 원본 자료 주소(`originalApiUrl`)를 기록합니다. 심판은 `aleph.config.json`이 아니라 이 배포본의 값을 읽습니다.
 - DB 권한: `public.notes`는 RLS가 켜져 있고 `anon`·`authenticated`의 직접 권한을 모두 회수했습니다(`supabase/step4-rls.sql`, `supabase/step5-revoke-direct.sql`). 정책 4개(`auth.uid() = owner_id`)는 권한이 다시 열릴 때를 대비한 안전장치로 남겼습니다. 메모는 서버 함수가 서버 전용 키로만 읽고 쓰며, 원본 자료 주소는 `aleph.config.json`의 `originalApiUrl`에 적었습니다. 기존 샘플 메모 4건은 시험 계정 A 소유로 연결했고, 시험 계정 B 소유의 시험 메모가 1건 있습니다.
 - 판정기(`src/decider.mjs`): `device_registered` 규칙 추가. 엔진이 확인한 `deviceRegistered`가 `true`면 허용(`approved`), `false`이거나 값이 없으면 거부(`device_not_registered`)합니다.
+- 판정기 `step_up_required` 규칙(7단계): 엔진이 `signals.source: "judge_fixture"`로 표시한 가상 접속 사건에서 **평소와 다른 시각(0~5시·23시) + 처음 보는 네트워크(`unusual`) + 최근 300초 안 위험 사건(`risk_signal`) 합계 10건 이상**이 모두 맞을 때만 `step_up`(`step_up_required`)을 돌려줍니다. 엔진이 확인한 `stepUp`(`verified: true`, 나이 0~900초)이 있으면 같은 사건도 허용합니다. 지역(`region`)은 단독 근거로도 차단 근거로도 쓰지 않습니다. 출처가 `none`이거나 값이 없거나 형식이 틀리면 근거로 쓰지 않고 정상값으로 채우지도 않으며, 요청의 정해진 항목 밖 값(헤더·`geo`·`role` 등)은 읽지 않습니다. 기기 규칙이 먼저 적용됩니다.
+- 한계(미실행): 이 저장소의 `/api/*` 서버 함수는 아직 판정기를 부르지 않습니다. 다시 로그인 전 실제 자료 차단과 새 로그인 뒤 허용은 제공 엔진이 새 로그인 시각을 검증하는 환경에서만 시험할 수 있어 **실측하지 않았습니다**. 여기서는 가상 요청으로 규칙만 시험했습니다.
 
 ### 다시 실행하는 방법
 
@@ -39,7 +41,8 @@
    - `통과 · 등록 기기의 정상 요청` — `deviceRegistered: true` 요청이 `allow`·`approved`로 나와야 합니다.
    - `통과 · 미등록 기기의 가상 요청` — `deviceRegistered: false` 요청이 `deny`·`device_not_registered`로 나와야 합니다.
    - 마지막 줄 "이 명령은 가상 요청으로 연습하며 심판 통과 증거가 아닙니다."가 보여야 합니다.
-6. 제출 묶음: 변경을 모두 커밋한 뒤 `ALEPH_PUBLIC_KEY=<공개 키> npm run bundle`을 실행합니다. 공개 키는 원본 자료 주소를 직접 읽어 보는 점검에만 쓰이고 어디에도 기록되지 않으며, 주지 않으면 그 점검은 "미실행"으로 남습니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
+6. 7단계 확인: `npm run fixture:7`은 `정상 사건: allow`, `복합 이상 사건: step_up`을 보여 주고, `npm run decider:test`는 4건 모두 `통과`여야 합니다. 세부 경우(지역만 낯선 요청, 출처 불명, 확인 시각 만료 등)는 `node --test test/decider-step7.test.mjs`로 봅니다. 모두 가상 요청 연습이며 심판 판정이 아닙니다.
+7. 제출 묶음: 변경을 모두 커밋한 뒤 `ALEPH_PUBLIC_KEY=<공개 키> npm run bundle`을 실행합니다. 공개 키는 원본 자료 주소를 직접 읽어 보는 점검에만 쓰이고 어디에도 기록되지 않으며, 주지 않으면 그 점검은 "미실행"으로 남습니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
 
 ## 가상 메모 노출 확인 절차
 
