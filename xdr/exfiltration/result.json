@@ -1,0 +1,191 @@
+{
+  "schema": "aleph.xdr.result.v1",
+  "moduleKey": "exfiltration",
+  "decisions": [
+    {
+      "alertId": "ex-01",
+      "action": "block",
+      "confidence": 0.92,
+      "reason": "large_transfer+new_destination · T1041/T1048 (240MB, 파일 200건, 수준 12)"
+    },
+    {
+      "alertId": "ex-02",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "large_transfer+new_destination+off_hours_transfer+compressed_archive_out · T1041/T1048 (180MB, 파일 1건, 수준 12)"
+    },
+    {
+      "alertId": "ex-03",
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "large_transfer+repeat_transfer · T1041/T1048 (90MB, 파일 0건, 수준 11)"
+    },
+    {
+      "alertId": "ex-04",
+      "action": "block",
+      "confidence": 0.92,
+      "reason": "large_transfer+unusual_port+repeat_transfer · T1041/T1048 (120MB, 파일 60건, 수준 12)"
+    },
+    {
+      "alertId": "ex-05",
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "large_transfer+new_destination · T1041/T1048 (70MB, 파일 140건, 수준 10)"
+    },
+    {
+      "alertId": "ex-06",
+      "action": "block",
+      "confidence": 0.94,
+      "reason": "large_transfer+off_hours_transfer+repeat_transfer · T1041/T1048 (210MB, 파일 0건, 수준 12)"
+    },
+    {
+      "alertId": "ex-07",
+      "action": "block",
+      "confidence": 0.91,
+      "reason": "large_transfer+new_destination+repeat_transfer+compressed_archive_out · T1041/T1048 (150MB, 파일 3건, 수준 11)"
+    },
+    {
+      "alertId": "ex-08",
+      "action": "block",
+      "confidence": 0.92,
+      "reason": "large_transfer+external_bulk_copy · T1041/T1048 (320MB, 파일 400건, 수준 12)"
+    },
+    {
+      "alertId": "ex-09",
+      "action": "block",
+      "confidence": 0.91,
+      "reason": "large_transfer+new_destination+repeat_transfer+command_channel · T1041/T1048 (80MB, 파일 0건, 수준 10)"
+    },
+    {
+      "alertId": "ex-10",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "large_transfer+new_destination+multi_destination+compressed_archive_out · T1041/T1048 (110MB, 파일 2건, 수준 12)"
+    },
+    {
+      "alertId": "ex-11",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "new_destination · 큰 전송 아님 (8000000바이트, 파일 1건, 수준 6)"
+    },
+    {
+      "alertId": "ex-12",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "moderate_volume · 큰 전송 아님 (12000000바이트, 파일 4건, 수준 7)"
+    },
+    {
+      "alertId": "ex-13",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "tagged_without_signal · T1041/T1048 경보지만 유출 근거 없음 (수준 5)"
+    },
+    {
+      "alertId": "ex-14",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "new_destination · 큰 전송 아님 (400000바이트, 파일 2건, 수준 6)"
+    },
+    {
+      "alertId": "ex-15",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "tagged_without_signal · T1041/T1048 경보지만 유출 근거 없음 (수준 8)"
+    },
+    {
+      "alertId": "ex-16",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "moderate_volume · 큰 전송 아님 (15000000바이트, 파일 1건, 수준 6)"
+    },
+    {
+      "alertId": "ex-17",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "moderate_volume · 큰 전송 아님 (6000000바이트, 파일 12건, 수준 7)"
+    },
+    {
+      "alertId": "ex-18",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "new_destination · 큰 전송 아님 (0바이트, 파일 1건, 수준 5)"
+    },
+    {
+      "alertId": "ex-19",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "repeat_transfer+command_channel · 큰 전송 아님 (90000바이트, 파일 0건, 수준 6)"
+    },
+    {
+      "alertId": "ex-20",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "moderate_volume · 큰 전송 아님 (5000000바이트, 파일 2건, 수준 7)"
+    },
+    {
+      "alertId": "ex-21",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "ex-22",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "ex-23",
+      "action": "record",
+      "confidence": 0.1,
+      "reason": "tagged_without_signal · 작은 평소 전송 (수준 3)"
+    },
+    {
+      "alertId": "ex-24",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "ex-25",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "ex-26",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "ex-27",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "ex-28",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "ex-29",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "ex-30",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    }
+  ],
+  "counts": {
+    "block": 10,
+    "alert": 10,
+    "record": 10
+  }
+}

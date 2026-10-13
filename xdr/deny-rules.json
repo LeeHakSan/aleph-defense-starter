@@ -393,6 +393,88 @@
         "pv-09"
       ],
       "reason": "admin_group_added+admin_group_flap · T1068/T1078 (수준 10)"
+    },
+    {
+      "id": "xdr.exfiltration.203.0.113.50",
+      "decision": "deny",
+      "dstip": "203.0.113.50",
+      "expiresAt": "2026-09-27T02:05:14.000Z",
+      "alertIds": [
+        "ex-01",
+        "ex-03"
+      ],
+      "reason": "large_transfer+new_destination · T1041/T1048 (240MB, 파일 200건, 수준 12)"
+    },
+    {
+      "id": "xdr.exfiltration.198.51.100.40",
+      "decision": "deny",
+      "dstip": "198.51.100.40",
+      "expiresAt": "2026-09-27T02:20:07.000Z",
+      "alertIds": [
+        "ex-02",
+        "ex-04"
+      ],
+      "reason": "large_transfer+new_destination+off_hours_transfer+compressed_archive_out · T1041/T1048 (180MB, 파일 1건, 수준 12)"
+    },
+    {
+      "id": "xdr.exfiltration.203.0.113.55",
+      "decision": "deny",
+      "dstip": "203.0.113.55",
+      "expiresAt": "2026-09-27T03:04:26.000Z",
+      "alertIds": [
+        "ex-05"
+      ],
+      "reason": "large_transfer+new_destination · T1041/T1048 (70MB, 파일 140건, 수준 10)"
+    },
+    {
+      "id": "xdr.exfiltration.192.0.2.90",
+      "decision": "deny",
+      "dstip": "192.0.2.90",
+      "expiresAt": "2026-09-27T04:02:19.000Z",
+      "alertIds": [
+        "ex-06"
+      ],
+      "reason": "large_transfer+off_hours_transfer+repeat_transfer · T1041/T1048 (210MB, 파일 0건, 수준 12)"
+    },
+    {
+      "id": "xdr.exfiltration.198.51.100.45",
+      "decision": "deny",
+      "dstip": "198.51.100.45",
+      "expiresAt": "2026-09-27T05:12:08.000Z",
+      "alertIds": [
+        "ex-07"
+      ],
+      "reason": "large_transfer+new_destination+repeat_transfer+compressed_archive_out · T1041/T1048 (150MB, 파일 3건, 수준 11)"
+    },
+    {
+      "id": "xdr.exfiltration.203.0.113.60",
+      "decision": "deny",
+      "dstip": "203.0.113.60",
+      "expiresAt": "2026-09-27T06:03:41.000Z",
+      "alertIds": [
+        "ex-08"
+      ],
+      "reason": "large_transfer+external_bulk_copy · T1041/T1048 (320MB, 파일 400건, 수준 12)"
+    },
+    {
+      "id": "xdr.exfiltration.203.0.113.61",
+      "decision": "deny",
+      "dstip": "203.0.113.61",
+      "expiresAt": "2026-09-27T07:08:12.000Z",
+      "alertIds": [
+        "ex-09"
+      ],
+      "reason": "large_transfer+new_destination+repeat_transfer+command_channel · T1041/T1048 (80MB, 파일 0건, 수준 10)"
+    },
+    {
+      "id": "xdr.exfiltration.198.51.100.46",
+      "decision": "deny",
+      "dstip": "198.51.100.46",
+      "expiresAt": "2026-09-27T08:01:05.000Z",
+      "alertIds": [
+        "ex-10"
+      ],
+      "reason": "large_transfer+new_destination+multi_destination+compressed_archive_out · T1041/T1048 (110MB, 파일 2건, 수준 12)"
     }
   ]
 }

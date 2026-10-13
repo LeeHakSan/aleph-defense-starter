@@ -1,0 +1,76 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "exfiltration",
+  "source": "MITRE ATT&CK T1041 (Exfiltration Over C2 Channel), T1048 (Exfiltration Over Alternative Protocol)",
+  "largeBytes": 50000000,
+  "bulkFiles": 50,
+  "minRepeats": 3,
+  "patterns": [
+    {
+      "name": "large_transfer",
+      "technique": "T1048",
+      "condition": "한 번의 전송 용량이 largeBytes(50MB) 이상이거나 파일이 bulkFiles(50)건 이상임 (data.bytes, data.files)",
+      "basis": "MITRE ATT&CK T1048, T1041: 자료 유출은 짧은 시간에 평소보다 훨씬 큰 용량이 한꺼번에 나가는 것으로 드러난다."
+    },
+    {
+      "name": "new_destination",
+      "technique": "T1048",
+      "condition": "평소 목적지 목록에 없는 처음 보는 목적지·주소로 나감 (큰 전송이 아니면 알림에 그침)",
+      "basis": "MITRE ATT&CK T1048: 유출은 공격자가 정한 처음 보는 바깥 주소로 향하므로 평소 목적지와 비교하면 드러난다."
+    },
+    {
+      "name": "unusual_port",
+      "technique": "T1048",
+      "condition": "평소에 쓰지 않던 포트로 자료가 전송됨",
+      "basis": "MITRE ATT&CK T1048: 공격자는 평소 감시하지 않는 다른 프로토콜·포트로 자료를 빼내는 경우가 많다."
+    },
+    {
+      "name": "off_hours_transfer",
+      "technique": "T1048",
+      "condition": "수업 시간 밖이나 업무 시간 밖에 전송이 있음",
+      "basis": "MITRE ATT&CK T1048: 유출은 사용자가 없는 시각에 눈에 띄지 않게 진행되는 경우가 많다."
+    },
+    {
+      "name": "compressed_archive_out",
+      "technique": "T1048",
+      "condition": "압축 파일이 바깥으로 나감 (보조 신호, 압축 파일을 만들기만 한 것은 알림에 그침)",
+      "basis": "MITRE ATT&CK T1048: 공격자는 빼내기 전에 자료를 압축해 한 덩어리로 묶어 보내는 경우가 많다."
+    },
+    {
+      "name": "repeat_transfer",
+      "technique": "T1041",
+      "condition": "같은 목적지로 전송이 minRepeats(3)번 이상 반복·연속됨 (data.count >= 3 또는 반복·연속 표기)",
+      "basis": "MITRE ATT&CK T1041: 큰 자료는 나누어 같은 통로로 여러 번 반복해 보내는 경우가 많다."
+    },
+    {
+      "name": "multi_destination",
+      "technique": "T1048",
+      "condition": "같은 자료가 목적지 두 곳 이상으로 나감",
+      "basis": "MITRE ATT&CK T1048: 공격자는 한 곳이 막혀도 받을 수 있게 같은 자료를 여러 목적지로 보내기도 한다."
+    },
+    {
+      "name": "external_bulk_copy",
+      "technique": "T1041",
+      "condition": "자료실 전체가 짧은 시간에 외부 주소로 복사됨",
+      "basis": "MITRE ATT&CK T1041: 명령 통로로 저장소 전체를 한꺼번에 가져가는 것이 대량 유출의 대표적인 모양이다."
+    },
+    {
+      "name": "command_channel",
+      "technique": "T1041",
+      "condition": "명령 통로(C2)로 자료 이름이나 파일이 전송됨 (보조 신호)",
+      "basis": "MITRE ATT&CK T1041: 유출은 공격자와 이미 연결된 명령 통로를 그대로 써서 자료를 보내는 경우가 많다."
+    },
+    {
+      "name": "moderate_volume",
+      "technique": "T1048",
+      "condition": "전송 용량이 5MB 이상이거나 파일이 10건 이상이지만 large_transfer 기준 아래임 (알림에 그치며 막지 않음)",
+      "basis": "MITRE ATT&CK T1048: 평소보다 조금 큰 전송은 정상 백업일 수 있어 막지 않고 알려서 사람이 보게 한다."
+    },
+    {
+      "name": "tagged_without_signal",
+      "technique": "T1048",
+      "condition": "T1041·T1048 경보이지만 위 패턴이 없음 (알림에 그치며 막지 않음)",
+      "basis": "MITRE ATT&CK T1041, T1048: 기법 표지가 붙었어도 유출의 실제 근거가 없으면 알려서 사람이 확인하게 한다."
+    }
+  ]
+}
