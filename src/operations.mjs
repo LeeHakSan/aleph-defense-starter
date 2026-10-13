@@ -1,5 +1,5 @@
 import { RULE_IDS } from './decider.mjs';
-import { observeAll } from './attack-check.mjs';
+import { observeAll, observeScreens } from './attack-check.mjs';
 import { detectionSummary } from './rule-check.mjs';
 import { loadRecoveryPlan } from './policy-files.mjs';
 import config from '../aleph.config.json' with { type: 'json' };
@@ -8,7 +8,6 @@ import matrix from '../data/attack-matrix.json' with { type: 'json' };
 // 작전실 화면이 읽는 실제 관측. 이 배포에 지금 요청을 보내 얻은 응답 상태·요청 ID·확인 시각만 담고, 화면의 문구는 통과 근거가 아니다.
 // 메모 제목·본문·토큰·실명·기기 키는 읽지도 담지도 않는다. 확인하지 못한 것은 not_run·null 로 남긴다.
 const MIN_INTERVAL_MS = 15000;
-const SELF_CHECK_SKIP = ['s12-operations-screen'];
 let last = null;
 let running = null;
 
@@ -25,7 +24,9 @@ async function recoverySummary() {
 
 async function observe() {
   const checkedAt = new Date().toISOString();
-  const rows = await observeAll(config.publicAppUrl, { skip: SELF_CHECK_SKIP });
+  // 묶음(npm run bundle)과 같은 함수·같은 점검 목록으로 관측해서 수치가 어긋나지 않게 한다. 화면·정책 확인은 점검 수치에 넣지 않고 따로 둔다.
+  const rows = await observeAll(config.publicAppUrl);
+  const screens = await observeScreens(config.publicAppUrl);
   const recovery = await recoverySummary();
   const planned = matrix.attacks;
   const executed = planned.filter((item) => item.status === 'executed').length;
@@ -36,6 +37,7 @@ async function observe() {
     step: config.step,
     summary: { total: rows.length, blocked: count(rows, 'blocked'), breached: count(rows, 'breached'), notRun: count(rows, 'not_run') },
     rows,
+    screens,
     judgeRules: {
       ruleIds: [...RULE_IDS],
       cases: rows.filter((row) => row.kind === 'rule').map(({ attackId, result, observed, requests }) => ({ attackId, result, observed, requestId: requests[0]?.requestId ?? null })),

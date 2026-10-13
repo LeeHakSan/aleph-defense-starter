@@ -56,11 +56,20 @@
     </section>
 
     <section class="card">
-      <h2>1~12단계 정상·금지 요청 실측표</h2>
-      <p>한 줄은 한 점검입니다. 요청 ID 는 응답의 서버 요청 번호(Vercel 기록의 Request ID 와 같음)이고, 확인 시각은 그 요청을 보낸 시각입니다.</p>
+      <h2>1~12단계 공격 점검 실측표</h2>
+      <p>위 점검 수치는 이 표의 줄 수와 결과만 센 것이며, 제출 묶음(<code>npm run bundle</code>)과 같은 점검 목록을 같은 코드로 보낸 읽기 요청(GET)의 결과입니다. 한 줄은 요청 하나입니다. 요청 ID 는 응답의 서버 요청 번호(Vercel 기록의 Request ID 와 같음)이고, 확인 시각은 그 요청을 보낸 시각입니다.</p>
       <div class="scroll"><table>
         <thead><tr><th>단계</th><th>구분</th><th>요청과 응답</th><th>기대</th><th>실제</th><th>결과</th><th>요청 ID</th><th>확인 시각</th></tr></thead>
         <tbody id="rows"></tbody>
+      </table></div>
+    </section>
+
+    <section class="card">
+      <h2>화면·정책 확인(정상 요청)</h2>
+      <p>공격 점검이 아니라서 위 점검 수치에 넣지 않았습니다. 정상 화면이 열리고 보호 요청이 없는지 보는 읽기 요청입니다.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>단계</th><th>요청과 응답</th><th>기대</th><th>실제</th><th>결과</th><th>요청 ID</th><th>확인 시각</th></tr></thead>
+        <tbody id="screens"></tbody>
       </table></div>
     </section>
 
@@ -121,7 +130,7 @@
 
     // 관측에 실패하면 이전 수치와 표를 모두 비운다(낡은 성공을 보여 주지 않는다).
     function clearAll(message) {
-      for (const id of ['summary', 'rows', 'rule-cases', 'matrix']) $(id).replaceChildren();
+      for (const id of ['summary', 'rows', 'screens', 'rule-cases', 'matrix']) $(id).replaceChildren();
       for (const id of ['rule-ids', 'detection', 'revocation', 'recovery', 'matrix-summary']) $(id).textContent = '';
       $('meta').textContent = '이번 관측 없음';
       $('failure').textContent = message;
@@ -151,6 +160,14 @@
         const ids = row.requests.length ? row.requests.map((r) => r.requestId ?? '없음').join('\n') : '없음';
         const when = row.requests.length ? row.requests[0].checkedAt : '없음';
         tr.append(cell(String(row.stage)), cell(KIND[row.kind] ?? row.kind), cell(asked, 'mono'), cell(row.expected), cell(row.observed), tag(row.result), cell(ids, 'mono'), cell(when, 'mono'));
+        for (const td of tr.children) td.style.whiteSpace = 'pre-line';
+        return tr;
+      }));
+
+      fill('screens', (data.screens ?? []).map((row) => {
+        const tr = document.createElement('tr');
+        const r = row.requests[0];
+        tr.append(cell(String(row.stage)), cell(r ? `${r.method} ${r.path} → ${r.status ?? '실패'}` : '요청을 보내지 않음', 'mono'), cell(row.expected), cell(row.observed), tag(row.result), cell(r?.requestId ?? '없음', 'mono'), cell(r?.checkedAt ?? '없음', 'mono'));
         for (const td of tr.children) td.style.whiteSpace = 'pre-line';
         return tr;
       }));

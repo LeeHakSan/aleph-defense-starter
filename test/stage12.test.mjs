@@ -184,10 +184,17 @@ test('작전실 API: 실제 요청 ID·확인 시각·미실행을 구분해 담
     assert.equal(first.summary.total, first.summary.blocked + first.summary.breached + first.summary.notRun);
     assert.equal(first.summary.notRun, 1);
     assert.equal(first.summary.breached, 0);
+    assert.equal(first.summary.blocked, first.rows.filter(row => row.result === 'blocked').length);
+    assert.equal(first.summary.blocked, first.summary.total - first.summary.notRun - first.summary.breached);
     const request = first.rows.find(row => row.attackId === 's03-unauth-list').requests[0];
     assert.equal(request.requestId, 'reqid-1700000000000-aaaabbbbcccc');
     assert.match(request.checkedAt, /^\d{4}-\d\d-\d\dT/u);
-    assert.equal(first.rows.some(row => row.attackId === 's12-operations-screen'), false);
+    // 작전실 수치는 묶음과 같은 함수·같은 점검 목록에서 나오고, 화면·정책 확인은 점검 수치에 넣지 않고 따로 둔다.
+    const { CASES } = await import('../src/attack-check.mjs');
+    assert.deepEqual(first.rows.map(row => row.attackId).sort(), CASES.map(item => item.attackId).sort());
+    assert.equal(first.rows.every(row => row.requests.length <= 1), true);
+    assert.deepEqual(first.screens.map(row => row.attackId), ['s10-policy-copy', 's11-approval-screen', 's11-vault-screen', 's12-operations-screen']);
+    assert.equal(first.rows.some(row => first.screens.some(screen => screen.attackId === row.attackId)), false);
     assert.equal(first.revocation.connected, false);
     assert.equal(first.revocation.revoked, null);
     assert.equal(first.recovery.memoBackups.state, 'not_run');

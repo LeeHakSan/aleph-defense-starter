@@ -107,12 +107,12 @@ test('점검은 배포 주소 문자열이나 설정 객체를 받아 다섯 값
 test('정상 배포: 거부해야 할 요청은 blocked, 로그인이 필요한 점검은 보내지 않고 not_run 으로 둔다', async () => {
   const attempts = await observeAndRun(APP, safeFetch([]));
   const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
-  for (const id of ['s01-static-notes', 's03-unauth-list', 's03-fake-token', 's05-direct-table', 's06-unregistered', 's09-burst-read',
-    's10-restore-unauth', 's10-policy-copy', 's11-approval-screen', 's11-device-status', 's12-operations-screen', 's12-combined-attack']) {
+  for (const id of ['s01-static-notes', 's03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's05-direct-table', 's06-unregistered', 's09-burst-read',
+    's10-restore-unauth', 's11-device-status', 's12-unauth-list', 's12-other-note-id', 's12-out-of-zone']) {
     assert.equal(byId[id].result, 'blocked', `${id}: ${byId[id].observed}`);
   }
-  assert.equal(byId['s04-logged-in-cases'].result, 'not_run');
-  assert.match(byId['s04-logged-in-cases'].observed, /미실행/u);
+  assert.equal(byId['s12-other-user-read'].result, 'not_run');
+  assert.equal(byId['s12-other-user-read'].observed, 'not_run');
   assert.equal(attempts.some(attempt => attempt.result === 'breached'), false);
 });
 
@@ -120,10 +120,31 @@ test('보호가 풀린 배포: 같은 점검이 breached 로 표시되고 고정
   const attempts = await observeAndRun(APP, openFetch([]));
   const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
   for (const id of ['s01-static-notes', 's03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's06-unregistered',
-    's10-restore-unauth', 's11-approval-screen', 's12-operations-screen', 's12-combined-attack']) {
+    's10-restore-unauth', 's12-unauth-list', 's12-other-note-id', 's12-out-of-zone']) {
     assert.equal(byId[id].result, 'breached', `${id}: ${byId[id].observed}`);
   }
-  assert.match(byId['s03-unauth-list'].observed, /HTTP 200/u);
+  assert.match(byId['s03-unauth-list'].observed, /^HTTP 200/u);
+});
+
+test('심판이 확인할 수 있는 사실만 observed 에 적는다: HTTP 상태와 규칙 점검의 jsonReady, 요청이 없으면 not_run', async () => {
+  for (const make of [safeFetch, openFetch]) {
+    const attempts = await observeAndRun(APP, make([]));
+    for (const attempt of attempts) {
+      assert.match(attempt.observed, /^(HTTP \d{3}(; jsonReady=(true|false))?|network_error|not_run)$/u, `${attempt.attackId}: ${attempt.observed}`);
+    }
+  }
+  const byId = Object.fromEntries((await observeAndRun(APP, safeFetch([]))).map(attempt => [attempt.attackId, attempt]));
+  assert.equal(byId['s06-unregistered'].observed, 'HTTP 200; jsonReady=true');
+  assert.equal(byId['s03-unauth-list'].observed, 'HTTP 401');
+});
+
+test('점검 하나(attackId)에는 요청을 하나만 보내고, 모든 요청은 GET 이며 24건 이하다', async () => {
+  const calls = [];
+  await observeAndRun(APP, safeFetch(calls));
+  const perCase = Object.groupBy(calls, ({ init }) => init.alephEvidence.caseId);
+  for (const [caseId, list] of Object.entries(perCase)) assert.equal(list.length, 1, `${caseId}: 요청 ${list.length}건`);
+  assert.ok(calls.length <= 24);
+  assert.ok(calls.every(({ init }) => init.method === 'GET'));
 });
 
 test('요청을 보내지 못하면 막음으로 세지 않고 not_run 으로 남긴다', async () => {
@@ -137,7 +158,7 @@ test('요청을 보내지 못하면 막음으로 세지 않고 not_run 으로 �
 test('요청마다 alephEvidence 에 사례와 요청 이름을 연결하고 헤더·URL 에는 넣지 않는다', async () => {
   const calls = [];
   await observeAndRun(APP, safeFetch(calls));
-  assert.ok(calls.length >= 20);
+  assert.ok(calls.length >= 15 && calls.length <= 24, String(calls.length));
   for (const { url, init } of calls) {
     assert.equal(typeof init.alephEvidence?.caseId, 'string', url);
     assert.equal(typeof init.alephEvidence?.requestKey, 'string', url);
@@ -145,14 +166,9 @@ test('요청마다 alephEvidence 에 사례와 요청 이름을 연결하고 헤
     assert.equal(Object.keys(init.headers).some(key => /aleph|evidence/iu.test(key)), false);
     assert.equal(init.redirect, 'manual');
   }
-  const keysPerCase = Object.groupBy(calls, ({ init }) => init.alephEvidence.caseId);
-  for (const [caseId, list] of Object.entries(keysPerCase)) {
-    const keys = list.map(({ init }) => init.alephEvidence.requestKey);
-    assert.equal(new Set(keys).size, keys.length, `${caseId}: 요청 이름이 겹침`);
-  }
 });
 
-test('점검은 로그인 토큰·키를 보내지 않고 위조 토큰은 서명이 맞지 않는 새 토큰이다', async () => {
+test('점검은 로그인 토큰·키를 보내지 않고 위조 토큰은 서명이 없는 가짜 토큰이다', async () => {
   const calls = [];
   await observeAndRun(APP, safeFetch(calls));
   const auth = calls.map(({ init }) => init.headers.authorization).filter(Boolean);
