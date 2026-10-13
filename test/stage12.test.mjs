@@ -78,8 +78,8 @@ test('41종 시험표: 41종이고 실행하지 않은 것을 통과로 바꿔 �
 });
 
 test('시험표가 가리키는 관련 점검은 실제로 있는 점검 ID 이다', async () => {
-  const { CASES } = await import('../src/attack-check.mjs');
-  const ids = new Set(CASES.map(item => item.attackId));
+  const { CASES, SCREEN_CASES } = await import('../src/attack-check.mjs');
+  const ids = new Set([...CASES, ...SCREEN_CASES].map(item => item.attackId));
   for (const item of matrix.attacks) for (const id of item.relatedCases) assert.ok(ids.has(id), `${item.name}: ${id}`);
 });
 
@@ -190,10 +190,10 @@ test('작전실 API: 실제 요청 ID·확인 시각·미실행을 구분해 담
     assert.equal(request.requestId, 'reqid-1700000000000-aaaabbbbcccc');
     assert.match(request.checkedAt, /^\d{4}-\d\d-\d\dT/u);
     // 작전실 수치는 묶음과 같은 함수·같은 점검 목록에서 나오고, 화면·정책 확인은 점검 수치에 넣지 않고 따로 둔다.
-    const { CASES } = await import('../src/attack-check.mjs');
+    const { CASES, SCREEN_CASES } = await import('../src/attack-check.mjs');
     assert.deepEqual(first.rows.map(row => row.attackId).sort(), CASES.map(item => item.attackId).sort());
     assert.equal(first.rows.every(row => row.requests.length <= 1), true);
-    assert.deepEqual(first.screens.map(row => row.attackId), ['s10-policy-copy', 's11-approval-screen', 's11-vault-screen', 's12-operations-screen']);
+    assert.deepEqual(first.screens.map(row => row.attackId).sort(), SCREEN_CASES.map(item => item.attackId).sort());
     assert.equal(first.rows.some(row => first.screens.some(screen => screen.attackId === row.attackId)), false);
     assert.equal(first.revocation.connected, false);
     assert.equal(first.revocation.revoked, null);

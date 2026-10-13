@@ -107,8 +107,8 @@ test('점검은 배포 주소 문자열이나 설정 객체를 받아 다섯 값
 test('정상 배포: 거부해야 할 요청은 blocked, 로그인이 필요한 점검은 보내지 않고 not_run 으로 둔다', async () => {
   const attempts = await observeAndRun(APP, safeFetch([]));
   const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
-  for (const id of ['s01-static-notes', 's03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's05-direct-table', 's06-unregistered', 's09-burst-read',
-    's10-restore-unauth', 's11-device-status', 's12-unauth-list', 's12-other-note-id', 's12-out-of-zone']) {
+  for (const id of ['s03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's05-direct-table', 's06-unregistered', 's09-burst-read',
+    's10-restore-unauth', 's12-unauth-list', 's12-other-note-id', 's12-out-of-zone']) {
     assert.equal(byId[id].result, 'blocked', `${id}: ${byId[id].observed}`);
   }
   assert.equal(byId['s12-other-user-read'].result, 'not_run');
@@ -119,7 +119,7 @@ test('정상 배포: 거부해야 할 요청은 blocked, 로그인이 필요한 
 test('보호가 풀린 배포: 같은 점검이 breached 로 표시되고 고정 문자열로 막음을 적지 않는다', async () => {
   const attempts = await observeAndRun(APP, openFetch([]));
   const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
-  for (const id of ['s01-static-notes', 's03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's06-unregistered',
+  for (const id of ['s03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity', 's06-unregistered',
     's10-restore-unauth', 's12-unauth-list', 's12-other-note-id', 's12-out-of-zone']) {
     assert.equal(byId[id].result, 'breached', `${id}: ${byId[id].observed}`);
   }
@@ -198,3 +198,24 @@ async function observeAndRun(input, fetchImpl) {
     globalThis.fetch = original;
   }
 }
+
+test('blocked 는 실제로 거부 응답(401·403·404 등)을 받았거나 규칙 점검이 jsonReady=true 일 때만이고, 200 으로 열린 정상 응답은 공격 점검에 없다', async () => {
+  const { CASES, SCREEN_CASES } = await import('../src/attack-check.mjs');
+  const attackIds = CASES.map(item => item.attackId);
+  for (const id of ['s01-static-notes', 's11-device-status', 's10-policy-copy', 's11-approval-screen', 's11-vault-screen', 's12-operations-screen']) {
+    assert.equal(attackIds.includes(id), false, `${id} 는 정상 요청 확인이라 공격 점검에 넣지 않는다`);
+    assert.ok(SCREEN_CASES.some(item => item.attackId === id), id);
+  }
+  // 모든 요청이 200 으로 열리는 배포에서는 거부 점검이 blocked 로 남을 수 없다.
+  const attempts = await observeAndRun(APP, openFetch([]));
+  const claimed = attempts.filter(attempt => attempt.result === 'blocked');
+  for (const attempt of claimed) {
+    assert.match(attempt.observed, /^HTTP (401|403|404|405|503)$|jsonReady=true$/u, `${attempt.attackId}: ${attempt.observed}`);
+  }
+  // 정상 배포에서도 blocked 로 센 점검은 모두 거부 응답이거나 jsonReady=true 이다.
+  const safe = await observeAndRun(APP, safeFetch([]));
+  for (const attempt of safe.filter(item => item.result === 'blocked')) {
+    assert.match(attempt.observed, /^HTTP (401|403|404|405|503)$|jsonReady=true$/u, `${attempt.attackId}: ${attempt.observed}`);
+  }
+  assert.equal(safe.filter(item => item.result === 'not_run').every(item => item.observed === 'not_run'), true);
+});

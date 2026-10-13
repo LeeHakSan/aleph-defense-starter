@@ -79,17 +79,9 @@ const denyCase = (attackId, stage, expected, plan) => ({
   },
 });
 
-// 묶음에 들어가는 공격 점검: 점검 하나에 요청 하나. 거부해야 할 요청이 거부되고 규칙 점검이 기대한 결과를 내면 blocked.
+// 묶음에 들어가는 공격 점검: 점검 하나에 요청 하나. blocked 는 실제로 거부 응답(401·403·404 등)을 받았거나 규칙 점검이 jsonReady=true 일 때만 센다.
+// 200 으로 열린 정상 응답(정적 자료·승인 상태 조회)은 막음이 아니므로 아래 SCREEN_CASES 로 따로 확인한다.
 export const CASES = [
-  {
-    attackId: 's01-static-notes', stage: 1, kind: 'forbidden', expected: '/data.json 에 메모가 없어야 함',
-    async run(ctx) {
-      const r = await probe(ctx, 's01-static-notes', 'read', '/data.json');
-      const empty = r.ran && !r.hasNotes && !(Array.isArray(r.json?.notes) && r.json.notes.length);
-      const marker = typeof ctx.config?.sampleMarker === 'string' && ctx.config.sampleMarker !== '' && r.text?.includes(ctx.config.sampleMarker);
-      return { requests: [r], ...outcome(r, (x) => empty && x.status !== 500 && !marker) };
-    },
-  },
   denyCase('s03-unauth-list', 3, '로그인 없는 자기 목록 요청은 401 로 거부', () => ['read', '/api/my/notes']),
   denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 거부', () => ['forged', '/api/my/notes', { headers: { authorization: `Bearer ${FAKE_JWT}` } }]),
   denyCase('s04-query-identity', 4, '쿼리로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => ['read', `/api/my/notes?userId=${TEST_UUID}&role=instructor`]),
@@ -102,13 +94,6 @@ export const CASES = [
   ruleCase('s08-write-notice', 8, '강사 공지 쓰기는 판정기가 거부'),
   ruleCase('s09-burst-read', 9, '조회 폭주 사건은 탐지 규칙이 회수 제안(propose_revocation)'),
   denyCase('s10-restore-unauth', 10, '로그인 없는 복구 경로(/api/restore/:noteId) 요청은 거부(읽기 요청만 보내므로 GET 으로 확인)', () => ['read', `/api/restore/${TEST_UUID}`]),
-  {
-    attackId: 's11-device-status', stage: 11, kind: 'forbidden', expected: '서버가 확인하지 못한 기기는 승인 상태(GET /api/device/status)가 approved:false 여야 함',
-    async run(ctx) {
-      const r = await probe(ctx, 's11-device-status', 'status', '/api/device/status');
-      return { requests: [r], ...outcome(r, (x) => x.status === 200 && x.json?.approved === false && !x.hasNotes) };
-    },
-  },
   denyCase('s12-unauth-list', 12, '무인증 조회: 로그인 없이 자기 메모 목록을 요청하면 거부', () => ['list', '/api/my/notes']),
   denyCase('s12-other-note-id', 12, '로그인 없이 다른 사람 메모 번호를 넣어 조회하면 거부(타인 계정으로 로그인한 조회는 아님)', () => ['other-note-get', `/api/notes/${TEST_UUID}`]),
   denyCase('s12-out-of-zone', 12, '구역 밖 조회: 로그인 없이 강사 공지 경로를 조회하면 거부', () => ['out-of-zone', '/api/notices']),
@@ -120,8 +105,24 @@ export const CASES = [
   },
 ];
 
-// 화면·정책 확인(정상 요청): 공격 점검이 아니라서 묶음과 작전실의 점검 수치에 넣지 않고 따로 보여 준다.
+// 정상 요청 확인(화면·정책·정적 자료·승인 상태): 공격을 막은 결과가 아니라서 묶음과 작전실의 점검 수치에 넣지 않고 따로 보여 준다.
 export const SCREEN_CASES = [
+  {
+    attackId: 's01-static-notes', stage: 1, kind: 'normal', expected: '/data.json 은 열려 있어도 메모가 없어야 함(정상 응답이라 막음으로 세지 않음)',
+    async run(ctx) {
+      const r = await probe(ctx, 's01-static-notes', 'read', '/data.json');
+      const empty = r.ran && !r.hasNotes && !(Array.isArray(r.json?.notes) && r.json.notes.length);
+      const marker = typeof ctx.config?.sampleMarker === 'string' && ctx.config.sampleMarker !== '' && r.text?.includes(ctx.config.sampleMarker);
+      return { requests: [r], ...outcome(r, (x) => empty && x.status !== 500 && !marker) };
+    },
+  },
+  {
+    attackId: 's11-device-status', stage: 11, kind: 'normal', expected: '서버가 확인하지 못한 기기는 승인 상태(GET /api/device/status)가 approved:false 여야 함(정상 응답이라 막음으로 세지 않음)',
+    async run(ctx) {
+      const r = await probe(ctx, 's11-device-status', 'status', '/api/device/status');
+      return { requests: [r], ...outcome(r, (x) => x.status === 200 && x.json?.approved === false && !x.hasNotes) };
+    },
+  },
   {
     attackId: 's10-policy-copy', stage: 10, kind: 'normal', expected: '검증한 안전 정책 사본을 다시 읽어 복원할 버전과 바뀔 범위를 보여 줘야 함(읽기 전용)',
     async run(ctx) {
