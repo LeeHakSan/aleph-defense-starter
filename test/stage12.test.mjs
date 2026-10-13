@@ -225,3 +225,30 @@ test('작전실 API: 관측이 실패하면 이전 성공 값을 돌려주지 �
     assert.equal(response.body.summary, null);
   }
 });
+
+test('제출 묶음 점검은 읽기 요청(GET·HEAD)만 보내고 요청은 24건 이하이며 사례마다 요청 이름이 겹치지 않는다', async () => {
+  const { observeAll, CASES } = await import('../src/attack-check.mjs');
+  const calls = [];
+  const fakeFetch = async (url, init) => { calls.push({ url: String(url), init }); return new Response('{}', { status: 401 }); };
+  await observeAll('https://student-defense.vercel.app', { fetch: fakeFetch });
+  assert.ok(calls.length >= 1 && calls.length <= 24, `요청 ${calls.length}건`);
+  for (const { url, init } of calls) {
+    assert.ok(['GET', 'HEAD'].includes(init.method), `${init.method} ${url}`);
+    assert.equal(init.body, undefined, url);
+    assert.equal(Object.keys(init.headers).some(key => key.toLowerCase() === 'content-type'), false, url);
+  }
+  // 설정 객체로 불러도 같은 한도를 지킨다(위조 토큰 서명용 발급자만 더해질 뿐 요청은 늘지 않는다).
+  const withConfig = [];
+  await observeAll({ publicAppUrl: 'https://student-defense.vercel.app', identityProvider: { issuer: 'https://p.supabase.co/auth/v1' } },
+    { fetch: async (url, init) => { withConfig.push(init.method); return new Response('{}', { status: 401 }); } });
+  assert.ok(withConfig.length <= 24 && withConfig.every(method => method === 'GET'));
+  assert.ok(CASES.length <= 20);
+});
+
+test('점검 코드가 쓰는 한도: 읽기 전용이 아닌 요청과 25번째 요청은 아예 보내지 않는다', async () => {
+  const source = await read('src/attack-check.mjs');
+  assert.match(source, /READ_ONLY_METHODS = new Set\(\['GET', 'HEAD'\]\)/u);
+  assert.match(source, /MAX_REQUESTS = 24/u);
+  assert.doesNotMatch(source.replace(/\/\/.*$/gmu, ''), /method: '(POST|PUT|PATCH|DELETE)'/u);
+  assert.doesNotMatch(source.replace(/\/\/.*$/gmu, ''), /JSON\.stringify\(body\)/u);
+});

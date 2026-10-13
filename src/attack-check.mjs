@@ -1,12 +1,15 @@
 // 1~12단계 점검. 배포에 보낼 수 있는 점검은 실제 요청을 보내 그 응답으로 observed 를 만들고, 판정·탐지 규칙 점검은 배포된
 // 서버의 /api/checks?case=... 가 고정된 가상 입력으로 규칙을 실행한 응답을 읽습니다. 고정 문자열로 「막음」을 적지 않습니다.
 // 요청을 보내지 못한 점검, 로그인이 필요해 보내지 않은 점검은 result 를 not_run 으로 두고 observed 에 그 사실을 적습니다.
+// 제출 묶음은 읽기 요청(GET·HEAD)만 보낼 수 있고 요청은 24건 이하여야 하므로, 이 파일은 그 두 한도를 코드로 강제한다.
 // 이 파일은 아무것도 불러오지 않고 전역 fetch·crypto 만 쓰며, 파일·환경 변수를 읽지 않습니다. 요청마다 alephEvidence 에
 // 사례(caseId)와 요청 이름(requestKey)을 연결합니다(요청 헤더·URL 에는 넣지 않습니다).
 
 const TEST_UUID = '00000000-0000-4000-8000-000000000001';
 const FAKE_JWT = 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.';
 const TIMEOUT_MS = 5000;
+const READ_ONLY_METHODS = new Set(['GET', 'HEAD']);
+const MAX_REQUESTS = 24;
 const NOTE_FIELDS = /"content"\s*:|"body"\s*:|"title"\s*:/u;
 // 승인 전 화면에는 로그인 폼·메모 목록·메모 요청·브라우저 저장소 사용이 없어야 한다.
 const GATED_MARKERS = [['로그인 폼', /type=["']?password/iu], ['메모 목록', /id=["']notes["']/iu],
@@ -37,15 +40,17 @@ async function forgedToken(issuer) {
 }
 
 // 요청 한 건. 응답 본문은 메모 필드가 있는지만 보고 기록하지 않는다. 요청 ID 는 응답의 x-vercel-id 끝 토큰(Vercel 기록의 Request ID 와 같다).
-async function probe(ctx, caseId, requestKey, path, { method = 'GET', headers = {}, body } = {}) {
+async function probe(ctx, caseId, requestKey, path, { method = 'GET', headers = {} } = {}) {
   const checkedAt = new Date().toISOString();
+  if (!READ_ONLY_METHODS.has(method)) return { ran: false, method, path, requestKey, checkedAt, status: null, error: '읽기 요청만 보낼 수 있음' };
+  ctx.sent = (ctx.sent ?? 0) + 1;
+  if (ctx.sent > MAX_REQUESTS) return { ran: false, method, path, requestKey, checkedAt, status: null, error: '요청 수 한도(24건) 초과' };
   try {
     const response = await withTimeout(ctx.fetch(new URL(path, ctx.base), {
       method,
       redirect: 'manual',
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}), ...headers },
-      ...(body ? { body: JSON.stringify(body) } : {}),
+      headers: { accept: 'application/json', ...headers },
       alephEvidence: { caseId, requestKey },
     }), TIMEOUT_MS + 500);
     const text = (await withTimeout(response.text(), TIMEOUT_MS)).slice(0, 60000);
@@ -93,15 +98,6 @@ const denyCase = (attackId, stage, expected, plan) => ({
   },
 });
 
-async function issuerOf(ctx) {
-  if (typeof ctx.config?.identityProvider?.issuer === 'string') return ctx.config.identityProvider.issuer;
-  ctx.issuer ??= (async () => {
-    const r = await probe(ctx, 's03-fake-token', 'config', '/aleph.json');
-    return typeof r.json?.identityProvider?.issuer === 'string' ? r.json.identityProvider.issuer : null;
-  })();
-  return ctx.issuer;
-}
-
 export const CASES = [
   {
     attackId: 's01-static-notes', stage: 1, kind: 'forbidden', expected: '/data.json 에 메모가 없어야 함',
@@ -111,9 +107,8 @@ export const CASES = [
       return { requests: [r], ...outcome([r], (rs) => ({ ok: rs[0].status !== 500 && !rs[0].hasNotes && !(Array.isArray(rs[0].json?.notes) && rs[0].json.notes.length) && !marker, note: `메모 ${Array.isArray(r.json?.notes) ? r.json.notes.length : 0}건` })) };
     },
   },
-  denyCase('s02-static-copy', 2, '다른 정적 사본(/notes.json)이 없어야 함', () => [['read', '/notes.json']]),
   denyCase('s03-unauth-list', 3, '로그인 없는 자기 목록 요청은 401 로 거부', () => [['read', '/api/my/notes']]),
-  denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 401 로 거부', async (ctx) => [['forged', '/api/my/notes', { headers: { authorization: `Bearer ${await forgedToken(await issuerOf(ctx))}` } }]]),
+  denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 401 로 거부', async (ctx) => [['forged', '/api/my/notes', { headers: { authorization: `Bearer ${await forgedToken(ctx.config?.identityProvider?.issuer)}` } }]]),
   denyCase('s04-query-identity', 4, '쿼리로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => [['read', `/api/my/notes?userId=${TEST_UUID}&role=instructor`]]),
   denyCase('s04-header-identity', 4, '헤더로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => [['read', '/api/my/notes', { headers: { 'x-user-id': TEST_UUID, 'x-role': 'instructor' } }]]),
   denyCase('s05-direct-table', 5, '원본 자료 주소(/rest/v1/notes)를 이 주소로 직접 읽을 수 없어야 함', () => [['read', '/rest/v1/notes']]),
@@ -123,7 +118,7 @@ export const CASES = [
   ruleCase('s08-all-notes', 8, '모호한 전체 메모 목록 경로는 판정기가 거부'),
   ruleCase('s08-write-notice', 8, '강사 공지 쓰기는 판정기가 거부'),
   ruleCase('s09-burst-read', 9, '조회 폭주 사건은 탐지 규칙이 회수 제안(propose_revocation)'),
-  denyCase('s10-restore-unauth', 10, '로그인 없는 복구 요청(POST /api/restore/:noteId)은 401 로 거부', () => [['read', `/api/restore/${TEST_UUID}`, { method: 'POST', body: {} }]]),
+  denyCase('s10-restore-unauth', 10, '로그인 없는 복구 경로(/api/restore/:noteId) 요청은 401 로 거부(읽기 요청만 보내므로 GET 으로 확인)', () => [['read', `/api/restore/${TEST_UUID}`]]),
   {
     attackId: 's10-policy-copy', stage: 10, kind: 'normal', expected: '검증한 안전 정책 사본을 다시 읽어 복원할 버전과 바뀔 범위를 보여 줘야 함(읽기 전용)',
     async run(ctx) {
@@ -144,13 +139,12 @@ export const CASES = [
     },
   },
   {
-    attackId: 's11-device-status', stage: 11, kind: 'normal', expected: '서버가 확인하지 못한 기기는 승인 상태가 approved:false 이고, 로그인 없는 승인 요청도 권한을 주지 않아야 함',
+    attackId: 's11-device-status', stage: 11, kind: 'normal', expected: '서버가 확인하지 못한 기기는 승인 상태(GET /api/device/status)가 approved:false 여야 함',
     async run(ctx) {
       const status = await probe(ctx, 's11-device-status', 'status', '/api/device/status');
-      const request = await probe(ctx, 's11-device-status', 'approval', '/api/device/approval', { method: 'POST', body: {} });
-      return { requests: [status, request], ...outcome([status, request], ([s, a]) => ({
-        ok: s.status === 200 && typeof s.json?.approved === 'boolean' && !s.hasNotes && !(a.status >= 200 && a.status < 300 && a.json?.approved === true),
-        note: `approved=${String(s.json?.approved)}; connected=${String(s.json?.connected)}; 승인 요청 ${a.status}` })) };
+      return { requests: [status], ...outcome([status], ([s]) => ({
+        ok: s.status === 200 && typeof s.json?.approved === 'boolean' && !s.hasNotes,
+        note: `approved=${String(s.json?.approved)}; connected=${String(s.json?.connected)}` })) };
     },
   },
   {
@@ -163,11 +157,9 @@ export const CASES = [
       }) };
     },
   },
-  denyCase('s12-combined-attack', 12, '무인증 조회·타인 메모 조회·서명 없는 변경·복구 요청·구역 밖 조회를 연속으로 보내도 모두 자료 없이 거부', () => [
+  denyCase('s12-combined-attack', 12, '무인증 조회·타인 메모 조회·구역 밖 조회를 연속으로 보내도 모두 자료 없이 거부(읽기 요청만 보냄, 서명 없는 변경은 보내지 않음)', () => [
     ['list', '/api/my/notes'],
     ['other-note-get', `/api/notes/${TEST_UUID}`],
-    ['unsigned-put', `/api/notes/${TEST_UUID}`, { method: 'PUT', body: { title: '점검' } }],
-    ['restore', `/api/restore/${TEST_UUID}`, { method: 'POST', body: {} }],
     ['out-of-zone', '/api/notices'],
   ]),
   {
