@@ -1,0 +1,155 @@
+{
+  "schema": "aleph.xdr.result.v1",
+  "moduleKey": "known-cve",
+  "decisions": [
+    {
+      "alertId": "kc-01",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "jndi_lookup_in_header · CVE-2021-44228 (T1190, 수준 13)"
+    },
+    {
+      "alertId": "kc-02",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "jndi_lookup_in_url · CVE-2021-44228 (T1190, 수준 12)"
+    },
+    {
+      "alertId": "kc-03",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "jndi_lookup_in_url+repeat_same_source · CVE-2021-44228 (T1190, 수준 12)"
+    },
+    {
+      "alertId": "kc-04",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "jndi_lookup_in_header+repeat_same_source · CVE-2021-44228 (T1190, 수준 13)"
+    },
+    {
+      "alertId": "kc-05",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "jndi_lookup_in_url+vuln_scanner_trace · CVE-2021-44228 (T1190, 수준 12)"
+    },
+    {
+      "alertId": "kc-06",
+      "action": "block",
+      "confidence": 0.92,
+      "reason": "jndi_lookup_in_url+repeat_same_source · CVE-2021-44228 (T1190, 수준 11)"
+    },
+    {
+      "alertId": "kc-07",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "jndi_lookup_in_header · CVE-2021-44228 (T1190, 수준 12)"
+    },
+    {
+      "alertId": "kc-08",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "jndi_lookup_in_url+jndi_lookup_in_header+lookup_in_both_header_and_url · CVE-2021-44228 (T1190, 수준 10)"
+    },
+    {
+      "alertId": "kc-09",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "cve_keyword_without_lookup · 완성된 원격 조회 구문 없음 (반복 1번)"
+    },
+    {
+      "alertId": "kc-10",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "cve_keyword_without_lookup · 완성된 원격 조회 구문 없음 (반복 1번)"
+    },
+    {
+      "alertId": "kc-11",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "T1190 경보지만 원격 조회 구문 없음 (수준 7, 반복 1번)"
+    },
+    {
+      "alertId": "kc-12",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "T1190 경보지만 원격 조회 구문 없음 (수준 6, 반복 1번)"
+    },
+    {
+      "alertId": "kc-13",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "T1190 경보지만 원격 조회 구문 없음 (수준 5, 반복 1번)"
+    },
+    {
+      "alertId": "kc-14",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "T1190 경보지만 원격 조회 구문 없음 (수준 7, 반복 1번)"
+    },
+    {
+      "alertId": "kc-15",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "T1190 경보지만 원격 조회 구문 없음 (수준 6, 반복 1번)"
+    },
+    {
+      "alertId": "kc-16",
+      "action": "alert",
+      "confidence": 0.6,
+      "reason": "cve_keyword_without_lookup · 완성된 원격 조회 구문 없음 (반복 2번)"
+    },
+    {
+      "alertId": "kc-17",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "kc-18",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "kc-19",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "kc-20",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "kc-21",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "kc-22",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "kc-23",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    },
+    {
+      "alertId": "kc-24",
+      "action": "record",
+      "confidence": 0.05,
+      "reason": "해당 패턴 없음"
+    }
+  ],
+  "counts": {
+    "block": 8,
+    "alert": 8,
+    "record": 8
+  }
+}

@@ -162,6 +162,77 @@
         "wi-08"
       ],
       "reason": "sql_injection_in_params · repeat_same_source (10번)"
+    },
+    {
+      "id": "xdr.known_cve.203.0.113.10",
+      "decision": "deny",
+      "srcip": "203.0.113.10",
+      "expiresAt": "2026-09-27T01:14:18.000Z",
+      "alertIds": [
+        "kc-01",
+        "kc-02"
+      ],
+      "reason": "jndi_lookup_in_header · CVE-2021-44228 (T1190, 수준 13)"
+    },
+    {
+      "id": "xdr.known_cve.198.51.100.16",
+      "decision": "deny",
+      "srcip": "198.51.100.16",
+      "expiresAt": "2026-09-27T01:17:06.000Z",
+      "alertIds": [
+        "kc-03"
+      ],
+      "reason": "jndi_lookup_in_url+repeat_same_source · CVE-2021-44228 (T1190, 수준 12)"
+    },
+    {
+      "id": "xdr.known_cve.192.0.2.16",
+      "decision": "deny",
+      "srcip": "192.0.2.16",
+      "expiresAt": "2026-09-27T02:04:22.000Z",
+      "alertIds": [
+        "kc-04"
+      ],
+      "reason": "jndi_lookup_in_header+repeat_same_source · CVE-2021-44228 (T1190, 수준 13)"
+    },
+    {
+      "id": "xdr.known_cve.203.0.113.24",
+      "decision": "deny",
+      "srcip": "203.0.113.24",
+      "expiresAt": "2026-09-27T02:21:09.000Z",
+      "alertIds": [
+        "kc-05"
+      ],
+      "reason": "jndi_lookup_in_url+vuln_scanner_trace · CVE-2021-44228 (T1190, 수준 12)"
+    },
+    {
+      "id": "xdr.known_cve.198.51.100.24",
+      "decision": "deny",
+      "srcip": "198.51.100.24",
+      "expiresAt": "2026-09-27T03:08:41.000Z",
+      "alertIds": [
+        "kc-06"
+      ],
+      "reason": "jndi_lookup_in_url+repeat_same_source · CVE-2021-44228 (T1190, 수준 11)"
+    },
+    {
+      "id": "xdr.known_cve.192.0.2.24",
+      "decision": "deny",
+      "srcip": "192.0.2.24",
+      "expiresAt": "2026-09-27T05:06:15.000Z",
+      "alertIds": [
+        "kc-07"
+      ],
+      "reason": "jndi_lookup_in_header · CVE-2021-44228 (T1190, 수준 12)"
+    },
+    {
+      "id": "xdr.known_cve.203.0.113.31",
+      "decision": "deny",
+      "srcip": "203.0.113.31",
+      "expiresAt": "2026-09-27T06:19:03.000Z",
+      "alertIds": [
+        "kc-08"
+      ],
+      "reason": "jndi_lookup_in_url+jndi_lookup_in_header+lookup_in_both_header_and_url · CVE-2021-44228 (T1190, 수준 10)"
     }
   ]
 }
