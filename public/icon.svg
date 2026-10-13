@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="자료실">
+  <rect width="512" height="512" fill="#101a28"/>
+  <path d="M256 96 120 148v104c0 86 58 140 136 164 78-24 136-78 136-164V148Z" fill="#1a2a3d" stroke="#8ad8df" stroke-width="16" stroke-linejoin="round"/>
+  <rect x="198" y="232" width="116" height="92" rx="14" fill="#8ad8df"/>
+  <path d="M222 232v-30a34 34 0 0 1 68 0v30" fill="none" stroke="#8ad8df" stroke-width="18" stroke-linecap="round"/>
+</svg>

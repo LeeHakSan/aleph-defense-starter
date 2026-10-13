@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (config.step !== 10) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (config.step !== 11) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
     app = new URL(config.publicAppUrl);
@@ -42,6 +42,10 @@ export async function runAttackChecks(config) {
 
   const aleph = await send(app, 'GET', '/aleph.json');
   const page = await send(app, 'GET', '/');
+  const vaultPage = await send(app, 'GET', '/vault.html');
+  const deviceStatus = await send(app, 'GET', '/api/device/status');
+  const manifestLink = /<link[^>]+rel=["']manifest["'][^>]*href=["']([^"']+)["']/iu.exec(page.text ?? '')?.[1] ?? null;
+  const manifest = manifestLink ? await send(app, 'GET', manifestLink) : null;
 
   // 화면에는 공개 키가 없으므로 직접 읽기 점검의 공개 키는 실행하는 사람이 환경 변수로 준다. 값은 어디에도 기록하지 않는다.
   const publicKey = usablePublicKey(process.env.ALEPH_PUBLIC_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY);
@@ -55,6 +59,11 @@ export async function runAttackChecks(config) {
   const serverSecret = /sb_secret_|service_role|SUPABASE_SECRET_KEY/u;
   const leaked = [['/', page], ['/data.json', data]].filter(([, file]) => serverSecret.test(file.text)
     || (typeof config.sampleMarker === 'string' && file.text.includes(config.sampleMarker)));
+
+  // 승인 전 화면(첫 화면·자료실 화면)에는 로그인 폼·메모 목록·편집 화면·저장소 사용·메모 요청 코드가 없어야 한다.
+  const gatedMarkers = [['로그인 폼', /type=["']?password/iu], ['메모 목록', /id=["']notes["']/iu], ['메모 요청', /\/api\/notes/u],
+    ['브라우저 저장소', /localStorage|sessionStorage|indexedDB|document\.cookie/u]];
+  const gatedFound = (res) => gatedMarkers.filter(([, pattern]) => pattern.test(res.text)).map(([name]) => name);
 
   const exposed = (Array.isArray(data.json?.notes) && data.json.notes.length > 0)
     || (typeof config.sampleMarker === 'string' && data.text.includes(config.sampleMarker));
@@ -73,13 +82,8 @@ export async function runAttackChecks(config) {
     },
     {
       attackId: 'api_notes_list_no_token',
-      expected: '로그인 토큰 없이 메모 목록을 요청하면 401로 거부되고 자료가 없어야 함',
-      observed: verdict(listNoToken),
-    },
-    {
-      attackId: 'api_notes_create_no_token',
-      expected: '로그인 토큰 없이 메모 추가를 요청하면 401로 거부되어야 함',
-      observed: verdict(createNoToken),
+      expected: '로그인 토큰 없이 메모 목록(/api/notes, /api/my/notes)과 메모 추가를 요청하면 모두 401로 거부되고 자료가 없어야 함',
+      observed: `목록: ${verdict(listNoToken)} · 내 목록: ${verdict(myList)} · 추가: ${verdict(createNoToken)}`,
     },
     {
       attackId: 'api_notes_item_no_token',
@@ -106,11 +110,6 @@ export async function runAttackChecks(config) {
       observed: verdict(otherService),
     },
     {
-      attackId: 'api_my_notes_no_token',
-      expected: '로그인 토큰 없이 자기 메모 목록(/api/my/notes)을 요청하면 401로 거부되어야 함',
-      observed: verdict(myList),
-    },
-    {
       attackId: 'api_restore_no_token',
       expected: '로그인 토큰 없이, 또는 위조 토큰으로 복구 경로(POST /api/restore/:noteId)를 부르면 401로 거부되어야 함 (없는 id로 보내 실제 메모는 바뀌지 않음)',
       observed: `토큰 없음: ${verdict(restoreNoToken)} · 위조 토큰: ${verdict(restoreForged)}`,
@@ -126,13 +125,8 @@ export async function runAttackChecks(config) {
     },
     {
       attackId: 'api_notices_no_token',
-      expected: '로그인 토큰 없이 강사 공지 목록·한 건을 요청하면 401로 거부되어야 함',
-      observed: `목록: ${verdict(noticeList)} · 한 건: ${verdict(noticeGet)}`,
-    },
-    {
-      attackId: 'api_notice_write_no_token',
-      expected: '로그인 토큰 없이 강사 공지를 수정하면 401로 거부되어야 함 (없는 id로 보내 실제 공지는 바뀌지 않음)',
-      observed: verdict(noticePut),
+      expected: '로그인 토큰 없이 강사 공지 목록·한 건 조회와 수정을 요청하면 모두 401로 거부되어야 함 (수정은 없는 id로 보내 실제 공지는 바뀌지 않음)',
+      observed: `목록: ${verdict(noticeList)} · 한 건: ${verdict(noticeGet)} · 수정: ${verdict(noticePut)}`,
     },
     {
       attackId: 'api_notice_student_write',
@@ -141,19 +135,44 @@ export async function runAttackChecks(config) {
     },
     {
       attackId: 'aleph_json_allowed_routes',
-      expected: '/aleph.json의 allowedRoutes에 허용 경로가 하나 이상 있어야 함',
+      expected: '/aleph.json의 allowedRoutes에 허용 경로가 하나 이상 있고 https로 시작하는 originalApiUrl(쿼리 없는 원본 자료 경로)이 있어야 함',
       observed: failedToSend(aleph)
         ? `요청 실패(${aleph.status}) — 확인 못 함`
-        : `/aleph.json에 허용 경로 ${routes.length}개 (HTTP ${aleph.status})`,
+        : `/aleph.json에 허용 경로 ${routes.length}개, originalApiUrl ${typeof aleph.json?.originalApiUrl === 'string' && aleph.json.originalApiUrl.startsWith('https://') ? '있음' : '없음'} (HTTP ${aleph.status})`,
     },
     {
-      attackId: 'aleph_json_original_api_url',
-      expected: '/aleph.json에 https로 시작하는 originalApiUrl(쿼리 없는 원본 자료 경로)이 있어야 함',
-      observed: failedToSend(aleph)
-        ? `요청 실패(${aleph.status}) — 확인 못 함`
-        : typeof aleph.json?.originalApiUrl === 'string' && aleph.json.originalApiUrl.startsWith('https://')
-          ? `/aleph.json에 originalApiUrl 있음 (HTTP ${aleph.status})`
-          : `/aleph.json에 originalApiUrl 없음 (HTTP ${aleph.status})`,
+      attackId: 'approval_screen_no_data_before_approval',
+      expected: '첫 화면(/)은 승인 화면이어야 하고, 승인 전에는 로그인 폼·메모 목록·메모 요청·브라우저 저장소 사용이 없어야 함',
+      observed: failedToSend(page)
+        ? `요청 실패(${page.status}) — 확인 못 함`
+        : gatedFound(page).length
+          ? `HTTP ${page.status} — 첫 화면에서 검출: ${gatedFound(page).join(', ')}`
+          : `HTTP ${page.status} — 첫 화면에 로그인 폼·메모 목록·메모 요청·저장소 사용 0건, 승인 안내 ${/기기 승인/u.test(page.text) ? '있음' : '없음'}`,
+    },
+    {
+      attackId: 'vault_screen_no_data_before_approval',
+      expected: '자료실 화면(/vault.html)은 서버가 승인하기 전에는 로그인 폼·메모 목록·메모 요청·브라우저 저장소 사용이 없어야 함 (자료실 화면 코드는 승인 뒤에만 불러옴)',
+      observed: failedToSend(vaultPage)
+        ? `요청 실패(${vaultPage.status}) — 확인 못 함`
+        : gatedFound(vaultPage).length
+          ? `HTTP ${vaultPage.status} — 자료실 화면에서 검출: ${gatedFound(vaultPage).join(', ')}`
+          : `HTTP ${vaultPage.status} — 자료실 화면에 로그인 폼·메모 목록·메모 요청·저장소 사용 0건`,
+    },
+    {
+      attackId: 'device_status_not_approved',
+      expected: '서버가 기기 승인을 확인할 수 없거나 승인하지 않았으면 승인 상태(GET /api/device/status)가 approved:false 이고, 승인 요청(POST)도 권한을 주지 않아야 함',
+      observed: failedToSend(deviceStatus)
+        ? `요청 실패(${deviceStatus.status}) — 확인 못 함`
+        : `HTTP ${deviceStatus.status}, approved ${String(deviceStatus.json?.approved)}, connected ${String(deviceStatus.json?.connected)}, 사유 ${deviceStatus.json?.reasonCode ?? '없음'}`,
+    },
+    {
+      attackId: 'manifest_installable_metadata',
+      expected: '첫 화면이 설치형 웹앱 설정(manifest)을 연결하고, 앱 이름·시작 주소·표시 방식·아이콘이 있어야 함 (설치 표시는 기기 승인이 아님)',
+      observed: !manifestLink
+        ? `첫 화면에 manifest 연결 없음 (HTTP ${page.status})`
+        : !manifest || failedToSend(manifest)
+          ? 'manifest 요청 실패 — 확인 못 함'
+          : `manifest HTTP ${manifest.status}, 이름 ${manifest.json?.name ? '있음' : '없음'}, 시작 주소 ${manifest.json?.start_url ?? '없음'}, 표시 ${manifest.json?.display ?? '없음'}, 아이콘 ${Array.isArray(manifest.json?.icons) ? manifest.json.icons.length : 0}개`,
     },
     {
       attackId: 'page_no_public_key',

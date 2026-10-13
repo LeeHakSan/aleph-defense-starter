@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import config from '../aleph.config.json' with { type: 'json' };
+import { protectedAccess } from './protected-access.mjs';
 import { createLoginVerifier } from './verify-login.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -42,6 +43,14 @@ export async function authenticate(request, response) {
     console.warn(JSON.stringify({ event: 'login_rejected', ...loginFailureHint(request.headers.authorization) }));
     response.setHeader('WWW-Authenticate', 'Bearer');
     fail(response, 401, 'LOGIN_REQUIRED');
+    return null;
+  }
+
+  // 로그인만으로는 보호 자료를 열지 않는다. 서버가 이 기기의 승인을 확인해야 한다(어댑터가 없으면 503).
+  const gate = await protectedAccess.check(login);
+  if (!gate.ok) {
+    console.warn(JSON.stringify({ event: 'device_gate', error: gate.error }));
+    fail(response, gate.status, gate.error);
     return null;
   }
   return { userId: login.userId.toLowerCase(), db: database, kind: login.kind };

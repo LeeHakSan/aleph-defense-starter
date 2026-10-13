@@ -1,0 +1,15 @@
+{
+  "name": "최 부장 자료실",
+  "short_name": "자료실",
+  "description": "내 자료실로 들어가는 설치형 웹앱 화면입니다. 기기 승인은 서버가 확인하며, 앱 설치 표시만으로는 기기를 믿지 않습니다.",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101a28",
+  "theme_color": "#101a28",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
