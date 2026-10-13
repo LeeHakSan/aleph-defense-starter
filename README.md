@@ -18,7 +18,7 @@
 
 로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. 저장소의 `src/attack-check.mjs`는 `npm run bundle`이 실행하는 자기 점검으로, 실제 배포 주소에 로그인 없는 요청·위조 토큰 요청·공개용 `anon` 키 직접 요청을 보내 결과만 기록합니다.
 
-## 현재 작동하는 기능 (5단계)
+## 현재 작동하는 기능 (6단계)
 
 - `/`: 이메일·비밀번호 로그인과 로그아웃. 로그인하면 본인 계정으로 가상 메모를 추가·수정·삭제하는 화면이 보입니다. 화면은 서버 함수(`/api/*`)만 부르고, 화면 코드에는 Supabase 주소·공개 키·외부 라이브러리가 없습니다.
 - `POST /api/auth/login`·`/refresh`·`/logout`: 서버가 Supabase Auth를 공개 키(서버 환경 변수 `SUPABASE_PUBLISHABLE_KEY`)로 대신 부르고, 화면에는 로그인 토큰·갱신 토큰·만료 시각·사용자 ID·이메일만 돌려줍니다. 틀린 정보는 401(`LOGIN_FAILED`), 공개 키 설정 문제는 503(`AUTH_MISCONFIGURED`)입니다. 화면은 토큰이 만료되면 알아서 갱신하고, 갱신이 안 되면 로그아웃 상태로 돌아갑니다.
@@ -26,6 +26,7 @@
 - 소유자 검사: 서버가 확인한 사용자 ID와 DB의 `owner_id`를 비교해, 다른 사용자(또는 주인 없는) 메모의 조회·수정·삭제는 403으로 거부합니다. 없는 id는 404입니다. 목록은 본인 메모만 돌려주고, 추가할 때는 확인된 ID를 `owner_id`로 저장합니다. 요청에 실려 온 `owner_id`·사용자 ID·역할은 믿지 않으며, 소유자를 바꾸려는 수정은 403입니다.
 - `/data.json`: 메모 없이 `{"notes":[]}`만 공개합니다. `/aleph.json`: 빌드가 단계·커밋·주소와 허용 경로(`allowedRoutes` 8개), 원본 자료 주소(`originalApiUrl`)를 기록합니다. 심판은 `aleph.config.json`이 아니라 이 배포본의 값을 읽습니다.
 - DB 권한: `public.notes`는 RLS가 켜져 있고 `anon`·`authenticated`의 직접 권한을 모두 회수했습니다(`supabase/step4-rls.sql`, `supabase/step5-revoke-direct.sql`). 정책 4개(`auth.uid() = owner_id`)는 권한이 다시 열릴 때를 대비한 안전장치로 남겼습니다. 메모는 서버 함수가 서버 전용 키로만 읽고 쓰며, 원본 자료 주소는 `aleph.config.json`의 `originalApiUrl`에 적었습니다. 기존 샘플 메모 4건은 시험 계정 A 소유로 연결했고, 시험 계정 B 소유의 시험 메모가 1건 있습니다.
+- 판정기(`src/decider.mjs`): `device_registered` 규칙 추가. 엔진이 확인한 `deviceRegistered`가 `true`면 허용(`approved`), `false`이거나 값이 없으면 거부(`device_not_registered`)합니다.
 
 ### 다시 실행하는 방법
 
@@ -34,7 +35,11 @@
 3. 거부 확인: `curl -i https://VERCEL_APP_URL/api/notes` → 401과 `{"error":"LOGIN_REQUIRED"}`
    로그인 경로 확인: `curl -i -X POST https://VERCEL_APP_URL/api/auth/login -H 'content-type: application/json' -d '{}'` → 400과 `INVALID_LOGIN`
 4. DB 규칙: `supabase/step4-rls.sql`, `supabase/step5-revoke-direct.sql` 순서로 Supabase SQL Editor에서 실행합니다. 샘플 메모의 소유자는 `owner_id`가 비어 있는 행을 시험 계정 A의 ID로 바꾸는 UPDATE로 연결했습니다. 적용 뒤 공개 키로 `/rest/v1/notes`를 직접 부르면 `permission denied`(HTTP 401)가 나와야 합니다.
-5. 제출 묶음: 변경을 모두 커밋한 뒤 `ALEPH_PUBLIC_KEY=<공개 키> npm run bundle`을 실행합니다. 공개 키는 원본 자료 주소를 직접 읽어 보는 점검에만 쓰이고 어디에도 기록되지 않으며, 주지 않으면 그 점검은 "미실행"으로 남습니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
+5. 판정기 확인: `npm run decider:test`를 실행합니다.
+   - `통과 · 등록 기기의 정상 요청` — `deviceRegistered: true` 요청이 `allow`·`approved`로 나와야 합니다.
+   - `통과 · 미등록 기기의 가상 요청` — `deviceRegistered: false` 요청이 `deny`·`device_not_registered`로 나와야 합니다.
+   - 마지막 줄 "이 명령은 가상 요청으로 연습하며 심판 통과 증거가 아닙니다."가 보여야 합니다.
+6. 제출 묶음: 변경을 모두 커밋한 뒤 `ALEPH_PUBLIC_KEY=<공개 키> npm run bundle`을 실행합니다. 공개 키는 원본 자료 주소를 직접 읽어 보는 점검에만 쓰이고 어디에도 기록되지 않으며, 주지 않으면 그 점검은 "미실행"으로 남습니다. 결과는 `artifacts/submission.json`에 담기며 커밋하지 않습니다.
 
 ## 가상 메모 노출 확인 절차
 
