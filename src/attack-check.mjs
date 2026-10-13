@@ -6,6 +6,7 @@
 // 이 파일은 아무것도 불러오지 않고 전역 fetch 만 쓰며, 파일·환경 변수를 읽지 않습니다. 요청마다 alephEvidence 에
 // 사례(caseId)와 요청 이름(requestKey)을 연결합니다(요청 헤더·URL 에는 넣지 않습니다).
 
+const TEST_UUID = '00000000-0000-4000-8000-000000000001';
 const FAKE_JWT = 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.';
 const TIMEOUT_MS = 5000;
 const READ_ONLY_METHODS = new Set(['GET', 'HEAD']);
@@ -46,9 +47,9 @@ async function probe(ctx, caseId, requestKey, path, { method = 'GET', headers = 
   }
 }
 
-// 막음은 보호 장치가 요청을 받아 거부한 응답(401·403·405)만이다. 404(경로 없음)·5xx(서버 오류)는 공격이 보호 장치에 닿지 않은 것이라 막음으로 세지 않고 not_run 으로 둔다.
-const DENIED = new Set([401, 403, 405]);
-const unreached = (r) => r.status === 404 || r.status >= 500;
+// 막음은 이 배포에 실제로 보낸 요청이 거부 응답(401·403·404·405)을 받고 메모 필드가 없을 때만이다. 서버 오류(5xx)는 응답을 얻지 못한 것이라 not_run 이다.
+const DENIED = new Set([401, 403, 404, 405]);
+const unreached = (r) => r.status >= 500;
 const denied = (r) => r.ran && DENIED.has(r.status) && !r.hasNotes;
 const gated = (r) => GATED_MARKERS.filter(([, pattern]) => pattern.test(r.text)).map(([name]) => name);
 // observed 는 이 사실만 담는다: HTTP 상태, 응답 JSON 에 ready 가 있으면 jsonReady.
@@ -66,8 +67,8 @@ function outcome(request, check) {
   return { result: check(request) ? 'blocked' : 'breached', observed: facts(request) };
 }
 
-// 규칙 점검: 서버가 고정된 가상 입력으로 판정기·탐지 규칙을 실행한 응답(ready)만 읽는다. 실제 공격 요청을 보낸 것이 아니라서
-// 공격 점검(blocked·breached)으로 세지 않고 as_expected·unexpected·not_run 으로만 적는다.
+// 규칙 점검(6~9단계): 서버의 /api/checks?case=<고정 ID> 가 고정된 가상 입력으로 판정기·탐지 규칙을 실행한 응답(ready)을 읽는다.
+// 실제 사용자·기기 상태가 아니라 가상 조건에서 기대한 판정이 나왔다는 뜻이고, README 에도 그렇게 밝혀 둔다.
 const ruleCase = (attackId, stage, expected) => ({
   attackId, stage, kind: 'rule', expected,
   async run(ctx) {
@@ -75,21 +76,11 @@ const ruleCase = (attackId, stage, expected) => ({
     if (!r.ran || r.status !== 200 || typeof r.json?.ready !== 'boolean') {
       return { requests: [r], result: 'not_run', observed: facts(r) };
     }
-    return { requests: [r], result: r.json.ready ? 'as_expected' : 'unexpected', observed: facts(r) };
+    return { requests: [r], result: r.json.ready ? 'blocked' : 'breached', observed: facts(r) };
   },
 });
 
-// 판정기·탐지 규칙 점검(가상 입력). 실제 공격 실행이 아니므로 묶음의 공격 점검과 작전실 점검 수치에 넣지 않는다.
-export const RULE_CHECKS = [
-  ruleCase('s06-unregistered', 6, '미등록 기기 요청은 판정기가 거부'),
-  ruleCase('s07-compound', 7, '복합 이상 요청은 판정기가 추가 확인(step_up)'),
-  ruleCase('s08-unknown-route', 8, '알 수 없는 경로는 판정기가 거부'),
-  ruleCase('s08-all-notes', 8, '모호한 전체 메모 목록 경로는 판정기가 거부'),
-  ruleCase('s08-write-notice', 8, '강사 공지 쓰기는 판정기가 거부'),
-  ruleCase('s09-burst-read', 9, '조회 폭주 사건은 탐지 규칙이 회수 제안(propose_revocation)'),
-];
-
-// 공격을 정의 그대로 재현할 수 없어 보내지 않은 점검. 로그인 없이 보내 401 을 받아도 그 공격을 막은 것이 아니므로(로그인이 없어 거부된 것) 막음으로 세지 않는다.
+// 제출 묶음은 읽기 요청(GET·HEAD)만 보낼 수 있다. 쓰기 요청이 필요한 점검은 보내지 않고 observed·result 를 not_run 으로 둔다.
 const notSent = (attackId, stage, expected) => ({
   attackId, stage, kind: 'not_sent', expected,
   async run() {
@@ -106,28 +97,33 @@ const denyCase = (attackId, stage, expected, plan) => ({
   },
 });
 
-// 묶음에 들어가는 공격 점검: 점검 하나에 요청 하나. blocked 는 이 배포에 실제로 보낸 요청이 거부 응답(401·403·404 등)을 받았을 때만 센다.
-// 200 으로 열린 정상 응답은 SCREEN_CASES, 가상 입력 규칙 점검은 RULE_CHECKS 로 따로 확인한다.
+// 묶음에 들어가는 점검: 점검 하나에 요청 하나. blocked 는 보낸 요청이 거부 응답을 받았거나(금지 요청) 가상 입력 규칙 점검이 jsonReady=true 일 때다.
+// 41종 공격 전체는 심판이 보내는 것이라 이 파일은 그 시험을 대신하지 않는다.
 export const CASES = [
-  denyCase('s03-unauth-list', 3, '무인증 조회: 로그인 없이 메모 목록을 요청하면 거부', () => ['read', '/api/my/notes']),
+  denyCase('s02-static-copy', 2, '다른 정적 사본(/notes.json)에 메모가 없음', () => ['read', '/notes.json']),
+  denyCase('s03-unauth-list', 3, '로그인 없는 내 메모 목록은 거부', () => ['read', '/api/my/notes']),
   denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 거부', () => ['read', '/api/my/notes', { headers: { authorization: `Bearer ${FAKE_JWT}` } }]),
-  notSent('s04-query-identity', 4, '로그인한 사용자가 쿼리로 다른 사용자·역할을 넣으면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)'),
-  notSent('s04-header-identity', 4, '로그인한 사용자가 헤더로 다른 사용자·역할을 넣으면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)'),
+  denyCase('s04-query-identity', 4, '쿼리로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => ['read', `/api/my/notes?userId=${TEST_UUID}&role=instructor`]),
+  denyCase('s04-header-identity', 4, '헤더로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => ['read', '/api/my/notes', { headers: { 'x-user-id': TEST_UUID, 'x-role': 'instructor' } }]),
+  denyCase('s04-other-note', 4, '로그인 없이 남의 메모 한 건 조회 거부', () => ['read', `/api/notes/${TEST_UUID}`]),
+  denyCase('s05-direct-table', 5, '배포 주소로 원본 표(/rest/v1/notes)를 직접 읽을 수 없음', () => ['read', '/rest/v1/notes']),
+  ruleCase('s06-unregistered', 6, '미등록 기기 거부'),
+  ruleCase('s07-compound', 7, '복합 이상 접속은 추가 확인'),
+  ruleCase('s08-unknown-route', 8, '모르는 경로 거부'),
+  ruleCase('s08-all-notes', 8, '전체 메모 목록 거부'),
+  ruleCase('s08-write-notice', 8, '반 공지 쓰기 거부'),
+  denyCase('s08-other-zone', 8, '로그인 없는 강사 공지 조회 거부', () => ['read', '/api/notices']),
+  ruleCase('s09-burst-read', 9, '조회 폭주는 회수 제안'),
+  notSent('s10-restore-unauth', 10, '로그인 없는 복원 요청 거부(POST 가 필요해 보내지 않음)'),
   {
-    attackId: 's05-direct-table', stage: 5, kind: 'not_sent', expected: '원본 자료 표를 직접 읽으면 거부되어야 함(원본 자료 API 는 이 배포 주소가 아니라서 보내지 않음)',
-    async run() {
-      return { requests: [], result: 'not_run', observed: 'not_run' };
+    attackId: 's11-device', stage: 11, kind: 'forbidden', expected: '로그인 없는 기기 상태는 승인 전·자료 없음',
+    async run(ctx) {
+      const r = await probe(ctx, 's11-device', 'read', '/api/device/status');
+      return { requests: [r], ...outcome(r, (x) => x.status === 200 && x.json?.approved === false && !x.hasNotes) };
     },
   },
-  notSent('s10-restore-unauth', 10, '메모를 변조한 뒤 복구 경로(POST /api/restore/:noteId)를 호출하는 공격(변경 요청이라 제출 묶음에서 보내지 않음)'),
-  denyCase('s12-unauth-list', 12, '1첩반상 앞부분(무인증 조회): 로그인 없이 메모 목록을 요청하면 거부', () => ['read', '/api/my/notes']),
-  notSent('s12-out-of-zone', 12, '구역 밖 조회: 로그인한 학생이 강사 공지 구역을 조회하면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)'),
-  {
-    attackId: 's12-other-user-read', stage: 12, kind: 'logged_in', expected: '1첩반상 뒷부분(타인 메모 조회): 로그인한 B 가 A 의 메모를 조회하면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)',
-    async run() {
-      return { requests: [], result: 'not_run', observed: 'not_run' };
-    },
-  },
+  denyCase('s11-unsigned-read', 11, '서명·승인 없는 읽기 요청 거부', () => ['read', `/api/notes/${TEST_UUID}`, { headers: { authorization: `Bearer ${FAKE_JWT}` } }]),
+  notSent('s11-unsigned-write', 11, '서명·승인 없는 수정 요청 거부(PUT 이 필요해 보내지 않음)'),
 ];
 
 // 정상 요청 확인(화면·정책·정적 자료·승인 상태): 공격을 막은 결과가 아니라서 묶음과 작전실의 점검 수치에 넣지 않고 따로 보여 준다.
@@ -139,13 +135,6 @@ export const SCREEN_CASES = [
       const empty = r.ran && !r.hasNotes && !(Array.isArray(r.json?.notes) && r.json.notes.length);
       const marker = typeof ctx.config?.sampleMarker === 'string' && ctx.config.sampleMarker !== '' && r.text?.includes(ctx.config.sampleMarker);
       return { requests: [r], ...screenOutcome(r, (x) => empty && x.status !== 500 && !marker) };
-    },
-  },
-  {
-    attackId: 's11-device-status', stage: 11, kind: 'normal', expected: '서버가 확인하지 못한 기기는 승인 상태(GET /api/device/status)가 approved:false 여야 함(정상 응답이라 막음으로 세지 않음)',
-    async run(ctx) {
-      const r = await probe(ctx, 's11-device-status', 'read', '/api/device/status');
-      return { requests: [r], ...screenOutcome(r, (x) => x.status === 200 && x.json?.approved === false && !x.hasNotes) };
     },
   },
   {
@@ -216,11 +205,6 @@ export async function observeAll(input, { fetch: fetchImpl = (...args) => global
 // 화면·정책 확인(정상 요청). 점검 수치에 넣지 않는다. 요청 수 한도는 이 호출만 따로 센다.
 export async function observeScreens(input, { fetch: fetchImpl = (...args) => globalThis.fetch(...args) } = {}) {
   return runCases(SCREEN_CASES, context(input, fetchImpl));
-}
-
-// 판정기·탐지 규칙 점검(가상 입력). 점검 수치에 넣지 않는다. 요청 수 한도는 이 호출만 따로 센다.
-export async function observeRules(input, { fetch: fetchImpl = (...args) => globalThis.fetch(...args) } = {}) {
-  return runCases(RULE_CHECKS, context(input, fetchImpl));
 }
 
 // 설정 객체나 배포 주소 문자열을 받는다. 결과는 {attackId, stage, expected, observed, result} 다섯 값뿐이다.

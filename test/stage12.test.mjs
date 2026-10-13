@@ -6,7 +6,6 @@ import { publicConfig } from '../scripts/public-config.mjs';
 import { RULE_CASES, detectionSummary, runRuleCheck } from '../src/rule-check.mjs';
 import { RULE_IDS } from '../src/decider.mjs';
 import config from '../aleph.config.json' with { type: 'json' };
-import matrix from '../data/attack-matrix.json' with { type: 'json' };
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -59,28 +58,15 @@ test('탐지 요약은 가상 사건(local_fixture)이고 120건은 관찰, 121�
   assert.deepEqual(summary.cases.map(item => [item.events, item.action]), [[120, 'observe'], [121, 'propose_revocation']]);
 });
 
-test('41종 시험표: 41종이고 실행하지 않은 것을 통과로 바꿔 두지 않았다', () => {
-  const items = matrix.attacks;
-  assert.equal(items.length, 41);
-  assert.equal(new Set(items.map(item => item.name)).size, 41);
-  assert.deepEqual(items.map(item => item.no), Array.from({ length: 41 }, (_, i) => i + 1));
-  assert.equal(items.filter(item => item.status === 'executed').length, 0);
-  for (const item of items) {
-    assert.ok(['not_run', 'executed'].includes(item.status), item.name);
-    assert.equal(typeof item.note, 'string');
-    assert.ok(item.note.length > 0);
+test('41종 공격은 표나 수치로 적지 않고 심판이 보내며 실행하지 않았다는 문장 하나로만 밝힌다', async () => {
+  await assert.rejects(read('data/attack-matrix.json'));
+  const html = await read('public/operations.html');
+  const readme = await read('README.md');
+  for (const text of [html, readme]) {
+    assert.match(text, /41종 공격 전체는 심판이 보내며 이 저장소에서는 실행하지 않았습니다/u);
+    assert.doesNotMatch(text, /attack-matrix|attackMatrix/u);
   }
-  const known = items.filter(item => item.stage !== null);
-  assert.equal(known.length, 17);
-  assert.deepEqual([...new Set(known.map(item => item.stage))].sort((a, b) => a - b), [8, 9, 10, 11, 12]);
-  assert.ok(items.filter(item => item.stage === null).every(item => item.attack === null));
-  assert.match(matrix.rule, /not_run/u);
-});
-
-test('시험표가 가리키는 관련 점검은 실제로 있는 점검 ID 이다', async () => {
-  const { CASES, SCREEN_CASES, RULE_CHECKS } = await import('../src/attack-check.mjs');
-  const ids = new Set([...CASES, ...SCREEN_CASES, ...RULE_CHECKS].map(item => item.attackId));
-  for (const item of matrix.attacks) for (const id of item.relatedCases) assert.ok(ids.has(id), `${item.name}: ${id}`);
+  assert.doesNotMatch(html, /fill\('matrix'|id="matrix"/u);
 });
 
 test('작전실 화면: 서버 응답만 글자로 그리고, 로그인 폼·메모 목록·메모 요청·저장소 사용·성공 문구가 없다', async () => {
@@ -99,17 +85,15 @@ test('작전실 화면: 서버 응답만 글자로 그리고, 로그인 폼·메
 test('작전실 화면: 관측에 실패하면 이전 수치와 표를 비운다', async () => {
   const html = await read('public/operations.html');
   const clear = html.slice(html.indexOf('function clearAll'), html.indexOf('function render'));
-  for (const id of ["'summary'", "'rows'", "'rule-cases'", "'matrix'"]) assert.match(clear, new RegExp(id, 'u'));
+  for (const id of ["'summary'", "'rows'", "'rule-cases'"]) assert.match(clear, new RegExp(id, 'u'));
   assert.match(clear, /replaceChildren\(\)/u);
   assert.match(html, /catch \{\s*clearAll\(/u);
-  assert.match(html, /!response\.ok \|\| data\?\.error \|\| !data\?\.summary/u);
+  assert.match(html, /!response\.ok \|\| data\?\.error \|\| !Number\.isInteger\(data\?\.total\)/u);
 });
 
-test('작전실 화면: 막음·뚫림·정상·미실행을 서로 다른 이름으로 적고 41종 시험표를 막음으로 표시하지 않는다', async () => {
+test('작전실 화면: 막음·뚫림·정상 응답·미실행을 서로 다른 이름으로 적는다', async () => {
   const html = await read('public/operations.html');
-  assert.match(html, /blocked: '막음\(거부 응답\)', breached: '뚫림', as_expected: '정상\(막음 아님\)', unexpected: '기대와 다름', not_run: '미실행'/u);
-  const matrixCode = html.slice(html.indexOf("fill('matrix'"), html.indexOf('async function observe'));
-  assert.doesNotMatch(matrixCode, /blocked|tag\(/u, '41종 시험표의 상태를 막음 태그로 바꾸지 않는다');
+  assert.match(html, /blocked: '막음\(기대대로\)', breached: '뚫림', as_expected: '정상 응답', unexpected: '기대와 다름', not_run: '미실행'/u);
   assert.match(html, /span\.textContent = RESULT\[result\]/u);
 });
 
@@ -182,14 +166,17 @@ test('작전실 API: 실제 요청 ID·확인 시각·미실행을 구분해 담
     assert.equal(first.schema, 'aleph.operations.v1');
     assert.equal(first.cached, false);
     assert.equal(first.step, 12);
-    assert.equal(first.summary.total, first.rows.length);
-    assert.equal(first.summary.total, first.summary.blocked + first.summary.breached + first.summary.notRun);
-    assert.equal(first.summary.notRun, 6);
-    assert.deepEqual(Object.keys(first.attackMatrix).sort(), ['executed', 'items', 'notRun', 'source', 'total'], '41종 표 요약에는 막음·통과 항목을 두지 않는다');
-    assert.equal(first.attackMatrix.items.some(item => 'relatedCases' in item), false);
-    assert.equal(first.summary.breached, 0);
-    assert.equal(first.summary.blocked, first.rows.filter(row => row.result === 'blocked').length);
-    assert.equal(first.summary.blocked, first.summary.total - first.summary.notRun - first.summary.breached);
+    assert.equal(first.total, first.rows.length);
+    assert.equal(first.total, first.blocked + first.failed + first.notRun);
+    assert.equal(first.notRun, 2);
+    assert.equal(first.failed, 0);
+    assert.equal(first.blocked, first.rows.filter(row => row.result === 'blocked').length);
+    assert.deepEqual(first.attempts, first.rows.map(({ attackId, stage, expected, observed, result }) => ({ attackId, stage, expected, observed, result })));
+    assert.equal('summary' in first, false);
+    assert.equal('attackMatrix' in first, false);
+    // total·blocked·failed·notRun 은 응답 어디에도 한 번씩만 나온다(같은 이름의 다른 수를 두지 않는다).
+    const json = JSON.stringify(first);
+    for (const key of ['total', 'blocked', 'failed', 'notRun']) assert.equal(json.split(`"${key}":`).length - 1, 1, key);
     const request = first.rows.find(row => row.attackId === 's03-unauth-list').requests[0];
     assert.equal(request.requestId, 'reqid-1700000000000-aaaabbbbcccc');
     assert.match(request.checkedAt, /^\d{4}-\d\d-\d\dT/u);
@@ -202,9 +189,6 @@ test('작전실 API: 실제 요청 ID·확인 시각·미실행을 구분해 담
     assert.equal(first.revocation.connected, false);
     assert.equal(first.revocation.revoked, null);
     assert.equal(first.recovery.memoBackups.state, 'not_run');
-    assert.equal(first.attackMatrix.total, 41);
-    assert.equal(first.attackMatrix.executed, 0);
-    assert.equal(first.attackMatrix.items.length, 41);
     assert.equal(first.detection.source, 'local_fixture');
     assert.deepEqual(first.judgeRules.ruleIds, [...RULE_IDS]);
     const text = JSON.stringify(first);
@@ -233,7 +217,7 @@ test('작전실 API: 관측이 실패하면 이전 성공 값을 돌려주지 �
   if (response.code === 503) {
     assert.equal(response.body.error, 'observation_failed');
     assert.deepEqual(response.body.rows, []);
-    assert.equal(response.body.summary, null);
+    assert.equal(response.body.total, null);
   }
 });
 
@@ -264,7 +248,7 @@ test('점검 코드가 쓰는 한도: 읽기 전용이 아닌 요청과 25번째
   assert.doesNotMatch(source.replace(/\/\/.*$/gmu, ''), /JSON\.stringify\(body\)/u);
 });
 
-test('정상 요청 확인은 blocked 를 쓰지 않고, 모든 요청 이름은 read 이며, 점검 응답 어디에도 200 응답이 blocked 로 적히지 않는다', async () => {
+test('정상 요청 확인은 blocked 를 쓰지 않고, 모든 요청 이름은 read 이며, blocked 는 거부 응답·규칙 jsonReady·승인 전 상태만이다', async () => {
   const { observeAll, observeScreens } = await import('../src/attack-check.mjs');
   const keys = [];
   const fakeFetch = async (url, init) => {
@@ -278,25 +262,26 @@ test('정상 요청 확인은 blocked 를 쓰지 않고, 모든 요청 이름은
   const attacks = await observeAll('https://student-defense.vercel.app', { fetch: fakeFetch });
   const screens = await observeScreens('https://student-defense.vercel.app', { fetch: fakeFetch });
   assert.ok(keys.length > 0 && keys.every(key => key === 'read'), [...new Set(keys)].join(','));
-  assert.ok(screens.length >= 6);
+  assert.equal(screens.length, 5);
   for (const row of screens) {
     assert.ok(['as_expected', 'unexpected', 'not_run'].includes(row.result), `${row.attackId}: ${row.result}`);
     assert.equal(row.requests.length, 1);
   }
   for (const row of attacks.filter(item => item.result === 'blocked')) {
-    assert.match(row.observed, /^HTTP (401|403|404|405|503)$|jsonReady=true$/u, `${row.attackId}: ${row.observed}`);
+    assert.match(row.observed, /^HTTP (401|403|404|405)$|^HTTP 200; jsonReady=true$|^HTTP 200$/u, `${row.attackId}: ${row.observed}`);
+    if (row.observed === 'HTTP 200') assert.equal(row.attackId, 's11-device');
   }
   assert.equal(JSON.stringify(screens).includes('"blocked"'), false);
 });
 
 test('작전실 화면·README·제출 설명에서 41종과 통과·막음이 한 문장에 함께 나오지 않는다', async () => {
   const pieces = [];
-  for (const file of ['public/operations.html', 'README.md', 'bundle-notes.json', 'data/attack-matrix.json']) {
+  for (const file of ['public/operations.html', 'README.md', 'bundle-notes.json']) {
     const text = (await read(file).catch(() => '')).replace(/<[^>]+>/gu, ' ').replace(/\\n/gu, '\n');
     for (const sentence of text.split(/[.。!?\n]/u)) pieces.push([file, sentence]);
   }
   const bad = pieces.filter(([, sentence]) => /41\s*종/u.test(sentence) && /통과|막았|막음|방어/u.test(sentence)).map(([file, sentence]) => `${file}: ${sentence.trim().slice(0, 80)}`);
   assert.deepEqual(bad, []);
   const html = await read('public/operations.html');
-  assert.doesNotMatch(html, /통과/u);
+  assert.doesNotMatch(html.replace('위 표에 없는 공격을 통과로 적지 않습니다', ''), /통과/u);
 });

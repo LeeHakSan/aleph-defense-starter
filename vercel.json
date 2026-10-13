@@ -15,6 +15,6 @@
   ],
   "functions": {
     "api/recovery-plan/index.js": { "includeFiles": "{backups,policy}/**" },
-    "api/checks/index.js": { "includeFiles": "{backups,policy,data}/**" }
+    "api/checks/index.js": { "includeFiles": "{backups,policy}/**" }
   }
 }
