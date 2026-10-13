@@ -107,8 +107,7 @@ test('점검은 배포 주소 문자열이나 설정 객체를 받아 다섯 값
 test('정상 배포: 거부해야 할 요청은 blocked, 로그인이 필요한 점검은 보내지 않고 not_run 으로 둔다', async () => {
   const attempts = await observeAndRun(APP, safeFetch([]));
   const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
-  for (const id of ['s03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity',
-    's10-restore-unauth', 's12-unauth-list', 's12-other-note-id', 's12-out-of-zone']) {
+  for (const id of ['s03-unauth-list', 's03-fake-token', 's12-unauth-list']) {
     assert.equal(byId[id].result, 'blocked', `${id}: ${byId[id].observed}`);
   }
   assert.equal(byId['s12-other-user-read'].result, 'not_run');
@@ -119,8 +118,7 @@ test('정상 배포: 거부해야 할 요청은 blocked, 로그인이 필요한 
 test('보호가 풀린 배포: 같은 점검이 breached 로 표시되고 고정 문자열로 막음을 적지 않는다', async () => {
   const attempts = await observeAndRun(APP, openFetch([]));
   const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
-  for (const id of ['s03-unauth-list', 's03-fake-token', 's04-query-identity', 's04-header-identity',
-    's10-restore-unauth', 's12-unauth-list', 's12-other-note-id', 's12-out-of-zone']) {
+  for (const id of ['s03-unauth-list', 's03-fake-token', 's12-unauth-list']) {
     assert.equal(byId[id].result, 'breached', `${id}: ${byId[id].observed}`);
   }
   assert.match(byId['s03-unauth-list'].observed, /^HTTP 200/u);
@@ -157,7 +155,7 @@ test('요청을 보내지 못하면 막음으로 세지 않고 not_run 으로 �
 test('요청마다 alephEvidence 에 사례와 요청 이름을 연결하고 헤더·URL 에는 넣지 않는다', async () => {
   const calls = [];
   await observeAndRun(APP, safeFetch(calls));
-  assert.ok(calls.length >= 8 && calls.length <= 24, String(calls.length));
+  assert.ok(calls.length >= 3 && calls.length <= 24, String(calls.length));
   for (const { url, init } of calls) {
     assert.equal(typeof init.alephEvidence?.caseId, 'string', url);
     assert.equal(typeof init.alephEvidence?.requestKey, 'string', url);
@@ -241,4 +239,16 @@ test('404(경로 없음)·5xx 와 보내지 않은 점검은 막음으로 세지
   for (const attempt of await observeAndRun(APP, missing)) assert.notEqual(attempt.result, 'blocked', attempt.attackId);
   const broken = async () => new Response('err', { status: 503 });
   for (const attempt of await observeAndRun(APP, broken)) assert.equal(attempt.result, 'not_run', attempt.attackId);
+});
+
+test('로그인·변경 요청이 필요한 공격은 로그인 없이 보내 401 을 받아도 막음으로 세지 않고 보내지 않은 채 not_run 으로 둔다', async () => {
+  const calls = [];
+  const attempts = await observeAndRun(APP, safeFetch(calls));
+  const byId = Object.fromEntries(attempts.map(attempt => [attempt.attackId, attempt]));
+  for (const id of ['s04-query-identity', 's04-header-identity', 's05-direct-table', 's10-restore-unauth', 's12-out-of-zone', 's12-other-user-read']) {
+    assert.equal(byId[id].result, 'not_run', id);
+    assert.equal(byId[id].observed, 'not_run', id);
+    assert.equal(calls.some(({ init }) => init.alephEvidence.caseId === id), false, `${id} 는 요청을 보내지 않는다`);
+  }
+  assert.deepEqual(attempts.filter(attempt => attempt.result === 'blocked').map(attempt => attempt.attackId).sort(), ['s03-fake-token', 's03-unauth-list', 's12-unauth-list']);
 });

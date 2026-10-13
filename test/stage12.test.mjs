@@ -184,7 +184,7 @@ test('작전실 API: 실제 요청 ID·확인 시각·미실행을 구분해 담
     assert.equal(first.step, 12);
     assert.equal(first.summary.total, first.rows.length);
     assert.equal(first.summary.total, first.summary.blocked + first.summary.breached + first.summary.notRun);
-    assert.equal(first.summary.notRun, 2);
+    assert.equal(first.summary.notRun, 6);
     assert.equal(first.attackMatrix.blocked, 0);
     assert.equal(first.attackMatrix.items.some(item => 'relatedCases' in item), false);
     assert.equal(first.summary.breached, 0);

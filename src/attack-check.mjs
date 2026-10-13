@@ -6,7 +6,6 @@
 // 이 파일은 아무것도 불러오지 않고 전역 fetch 만 쓰며, 파일·환경 변수를 읽지 않습니다. 요청마다 alephEvidence 에
 // 사례(caseId)와 요청 이름(requestKey)을 연결합니다(요청 헤더·URL 에는 넣지 않습니다).
 
-const TEST_UUID = '00000000-0000-4000-8000-000000000001';
 const FAKE_JWT = 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.';
 const TIMEOUT_MS = 5000;
 const READ_ONLY_METHODS = new Set(['GET', 'HEAD']);
@@ -90,6 +89,14 @@ export const RULE_CHECKS = [
   ruleCase('s09-burst-read', 9, '조회 폭주 사건은 탐지 규칙이 회수 제안(propose_revocation)'),
 ];
 
+// 공격을 정의 그대로 재현할 수 없어 보내지 않은 점검. 로그인 없이 보내 401 을 받아도 그 공격을 막은 것이 아니므로(로그인이 없어 거부된 것) 막음으로 세지 않는다.
+const notSent = (attackId, stage, expected) => ({
+  attackId, stage, kind: 'not_sent', expected,
+  async run() {
+    return { requests: [], result: 'not_run', observed: 'not_run' };
+  },
+});
+
 const denyCase = (attackId, stage, expected, plan) => ({
   attackId, stage, kind: 'forbidden', expected,
   async run(ctx) {
@@ -102,22 +109,21 @@ const denyCase = (attackId, stage, expected, plan) => ({
 // 묶음에 들어가는 공격 점검: 점검 하나에 요청 하나. blocked 는 이 배포에 실제로 보낸 요청이 거부 응답(401·403·404 등)을 받았을 때만 센다.
 // 200 으로 열린 정상 응답은 SCREEN_CASES, 가상 입력 규칙 점검은 RULE_CHECKS 로 따로 확인한다.
 export const CASES = [
-  denyCase('s03-unauth-list', 3, '로그인 없는 자기 목록 요청은 401 로 거부', () => ['read', '/api/my/notes']),
+  denyCase('s03-unauth-list', 3, '무인증 조회: 로그인 없이 메모 목록을 요청하면 거부', () => ['read', '/api/my/notes']),
   denyCase('s03-fake-token', 3, '서명이 틀린 위조 로그인 토큰은 거부', () => ['read', '/api/my/notes', { headers: { authorization: `Bearer ${FAKE_JWT}` } }]),
-  denyCase('s04-query-identity', 4, '쿼리로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => ['read', `/api/my/notes?userId=${TEST_UUID}&role=instructor`]),
-  denyCase('s04-header-identity', 4, '헤더로 보낸 사용자·역할은 신원으로 쓰지 않고 거부', () => ['read', '/api/my/notes', { headers: { 'x-user-id': TEST_UUID, 'x-role': 'instructor' } }]),
+  notSent('s04-query-identity', 4, '로그인한 사용자가 쿼리로 다른 사용자·역할을 넣으면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)'),
+  notSent('s04-header-identity', 4, '로그인한 사용자가 헤더로 다른 사용자·역할을 넣으면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)'),
   {
     attackId: 's05-direct-table', stage: 5, kind: 'not_sent', expected: '원본 자료 표를 직접 읽으면 거부되어야 함(원본 자료 API 는 이 배포 주소가 아니라서 보내지 않음)',
     async run() {
       return { requests: [], result: 'not_run', observed: 'not_run' };
     },
   },
-  denyCase('s10-restore-unauth', 10, '로그인 없는 복구 경로(/api/restore/:noteId) 요청은 거부(읽기 요청만 보내므로 GET 으로 확인)', () => ['read', `/api/restore/${TEST_UUID}`]),
-  denyCase('s12-unauth-list', 12, '무인증 조회: 로그인 없이 자기 메모 목록을 요청하면 거부', () => ['read', '/api/my/notes']),
-  denyCase('s12-other-note-id', 12, '로그인 없이 다른 사람 메모 번호를 넣어 조회하면 거부(타인 계정으로 로그인한 조회는 아님)', () => ['read', `/api/notes/${TEST_UUID}`]),
-  denyCase('s12-out-of-zone', 12, '구역 밖 조회: 로그인 없이 강사 공지 경로를 조회하면 거부', () => ['read', '/api/notices']),
+  notSent('s10-restore-unauth', 10, '메모를 변조한 뒤 복구 경로(POST /api/restore/:noteId)를 호출하는 공격(변경 요청이라 제출 묶음에서 보내지 않음)'),
+  denyCase('s12-unauth-list', 12, '1첩반상 앞부분(무인증 조회): 로그인 없이 메모 목록을 요청하면 거부', () => ['read', '/api/my/notes']),
+  notSent('s12-out-of-zone', 12, '구역 밖 조회: 로그인한 학생이 강사 공지 구역을 조회하면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)'),
   {
-    attackId: 's12-other-user-read', stage: 12, kind: 'logged_in', expected: '로그인한 B 가 A 의 메모를 조회하면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)',
+    attackId: 's12-other-user-read', stage: 12, kind: 'logged_in', expected: '1첩반상 뒷부분(타인 메모 조회): 로그인한 B 가 A 의 메모를 조회하면 거부되어야 함(시험 계정 로그인이 필요해 보내지 않음)',
     async run() {
       return { requests: [], result: 'not_run', observed: 'not_run' };
     },
