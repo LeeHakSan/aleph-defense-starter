@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { noteAccess, noticeAccess, resourceId } from '../src/access.mjs';
 import { handleNote } from '../src/notes-item.mjs';
+import { listOwnNotes } from '../src/notes-list.mjs';
 import { handleNotice, isInstructor, listNotices } from '../src/notices.mjs';
 
 const A = '11111111-1111-4111-8111-111111111111';
@@ -166,4 +167,17 @@ test('공지: 권한 조회가 실패하면 수정하지 않고 502, 지원하�
     assert.equal((await call(handleNotice, student(A, tables), method, NOTICE)).code, 405, method);
   }
   assert.equal((await call(handleNotice, student(A, tables), 'GET', 'export')).code, 400);
+});
+
+test('자기 목록(/api/my/notes): B 의 목록에는 A 의 메모가 한 건도 없다', async () => {
+  const tables = world();
+  tables.notes.push({ id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', owner_id: B, title: 'B의 가상 메모', content: '가상' });
+  const b = fakeResponse();
+  await listOwnNotes(student(B, tables), b);
+  assert.equal(b.code, 200);
+  assert.equal(b.headers['x-resource-id'], 'note:*');
+  assert.deepEqual(b.body.map(note => note.title), ['B의 가상 메모']);
+  const a = fakeResponse();
+  await listOwnNotes(student(A, tables), a);
+  assert.deepEqual(a.body.map(note => note.title), ['A의 가상 메모']);
 });

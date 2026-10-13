@@ -27,6 +27,7 @@ export async function runAttackChecks(config) {
   const itemGet = await send(app, 'GET', `/api/notes/${missingId}`);
   const itemPut = await send(app, 'PUT', `/api/notes/${missingId}`, { body: { title: '점검' } });
   const itemDelete = await send(app, 'DELETE', `/api/notes/${missingId}`);
+  const myList = await send(app, 'GET', '/api/my/notes');
   const noticeList = await send(app, 'GET', '/api/notices');
   const noticeGet = await send(app, 'GET', `/api/notices/${missingId}`);
   const noticePut = await send(app, 'PUT', `/api/notices/${missingId}`, { body: { title: '점검' } });
@@ -100,6 +101,11 @@ export async function runAttackChecks(config) {
       attackId: 'api_notes_wrong_audience_token',
       expected: '다른 서비스용(대상이 다른) 로그인 토큰은 401로 거부되어야 함 (이 점검의 토큰은 서명도 틀림)',
       observed: verdict(otherService),
+    },
+    {
+      attackId: 'api_my_notes_no_token',
+      expected: '로그인 토큰 없이 자기 메모 목록(/api/my/notes)을 요청하면 401로 거부되어야 함',
+      observed: verdict(myList),
     },
     {
       attackId: 'api_notices_no_token',

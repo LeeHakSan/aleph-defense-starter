@@ -50,7 +50,7 @@ test('출처가 judge_fixture 가 아니거나 값이 없으면 근거로 쓰지
     { source: 'judge_fixture', ...odd, hour: 24 }, null, undefined, 'judge_fixture', []]) {
     const out = await decide(fresh(suspicious, { signals }));
     assert.equal(out.decision, 'allow', JSON.stringify(signals));
-    assert.deepEqual(out.ruleIds, ['device_registered', 'own_notes_zone']);
+    assert.deepEqual(out.ruleIds, ['device_registered', 'resource_zones']);
   }
 });
 

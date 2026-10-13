@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { resourceId } from '../src/access.mjs';
+import { listOwnNotes } from '../src/notes-list.mjs';
 import {
-  authenticate, fail, NOTE_COLUMNS, parseId, readJsonObject, readNoteFields, toNote,
+  authenticate, fail, parseId, readJsonObject, readNoteFields,
 } from '../src/notes-common.mjs';
 
 export default async function handler(request, response) {
@@ -9,16 +10,7 @@ export default async function handler(request, response) {
   if (!session) return;
   const { userId, db } = session;
 
-  if (request.method === 'GET') {
-    response.setHeader('X-Resource-Id', resourceId('note'));
-    const { data, error } = await db
-      .from('notes')
-      .select(NOTE_COLUMNS)
-      .eq('owner_id', userId)
-      .order('created_at', { ascending: true });
-    if (error) return fail(response, 502, 'NOTES_FETCH_FAILED');
-    return response.status(200).json(data.map(toNote));
-  }
+  if (request.method === 'GET') return listOwnNotes(session, response);
 
   if (request.method === 'POST') {
     const input = readJsonObject(request);

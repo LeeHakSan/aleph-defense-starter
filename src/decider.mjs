@@ -3,27 +3,23 @@
 export const RULE_IDS = Object.freeze([
   'device_registered',
   'step_up_required',
-  'own_notes_zone',
-  'class_notices_read_zone',
-  'notice_write_instructor_only',
-  'unknown_route_deny',
+  'resource_zones',
+  'route_not_allowed',
+  'write_not_allowed',
 ]);
 
-// 구역 규칙(8단계): 엔진이 확인한 사용자(subjectId)·기기(deviceId)·method·정확한 경로로 자료 구역을 가른다.
-// 자기 메모 구역은 이 자료실 주인으로 등록된 사용자가 등록된 자기 기기로, 같은 반·프로젝트에서 요청할 때만 연다.
-// 다른 사용자, 주인 계정을 쓰는 다른 기기, 다른 반·프로젝트의 같은 메모 경로 요청은 거부한다.
-// 강사 공지는 읽기만 열고, 수정은 계약에 강사 역할이 없으므로 판정기에서 열지 않는다(수정 권한은 자료 API 가 저장된 강사로 따로 확인).
-// 쿼리가 붙은 요청과 자료 ID 자리의 기능 이름(export 등)은 정확한 경로가 아니므로 거부한다.
-// 주인 목록에는 엔진 실습 요청(scripts/fixture-7.mjs)의 가상 주인·기기만 있다. 실제 주인은 엔진이 확인한 가명 주체 ID·기기 ID 로 추가한다.
-const VAULT_OWNERS = Object.freeze([
-  Object.freeze({ classId: 'class_fixture', projectId: 'project_fixture', subjectId: 'learner_fixture', deviceId: 'aaaaaaaaaaaaaaaa' }),
-]);
-const isVaultOwner = (request) => VAULT_OWNERS.some(owner => owner.classId === request.classId
-  && owner.projectId === request.projectId && owner.subjectId === request.subjectId && owner.deviceId === request.deviceId);
-const ROUTE = /^(GET|POST|PUT|DELETE) (?:\/api)?(\/(?:notes|notices)(?:\/:id)?)$/u;
-const ID_SEGMENT = /^[A-Za-z0-9_-]{1,64}$/u;
-const RESERVED_IDS = new Set(['export', 'import', 'all', 'list', 'search', 'download', 'upload', 'bulk', 'backup', 'admin', 'new']);
-const NOTE_SHAPES = { GET: [true, false], POST: [false], PUT: [true], DELETE: [true] };
+// 구역 규칙(8단계): 엔진이 확인한 service·method·route·실제 path 가 아래 읽기 구역과 정확히 맞을 때만 연다.
+// 자기 메모 목록은 모호한 GET /api/notes 대신 명시적인 GET /api/my/notes 로만 열고, 메모 한 건 읽기는 정확한 :id 경로만 연다.
+// 계약에는 자료 소유자·강사 역할이 없으므로 판정기는 쓰기(추가·수정·삭제, 공지 수정 포함)를 열지 않는다.
+// 개별 메모의 소유자와 강사 권한은 자료 API 가 검증된 로그인과 저장된 값으로 다시 확인한다. subjectId 는 owner_id 와 비교하지 않는다.
+// 강사 공지 경로, 그 밖의 경로, 자료 ID 자리의 기능 이름(export 등), 쿼리가 붙은 요청은 거부한다.
+const READ_ZONES = Object.freeze({
+  'GET /api/my/notes': /^\/api\/my\/notes$/u,
+  'GET /api/notes/:id': /^\/api\/notes\/([A-Za-z0-9_-]{1,64})$/u,
+  'GET /notes/:id': /^\/notes\/([A-Za-z0-9_-]{1,64})$/u,
+});
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const FUNCTION_NAMES = new Set(['export', 'import', 'all', 'list', 'search', 'download', 'upload', 'bulk', 'backup', 'restore', 'admin', 'new']);
 
 // 가상 접속 사건은 엔진이 source 를 'judge_fixture' 로 표시해 넘긴 것만 읽습니다.
 // 'none'(실제 경로)이거나 값이 비었거나 형식이 틀리면 근거로 쓰지 않고, 정상값으로 채우지도 않습니다.
@@ -61,28 +57,16 @@ function isCompositeAnomaly(request) {
   return oddHour && signals.network === 'unusual' && recentRiskCount(request) >= BURST_MIN_COUNT;
 }
 
-function readZone(request) {
-  const route = typeof request.route === 'string' ? ROUTE.exec(request.route) : null;
-  if (!route || route[1] !== request.method || typeof request.path !== 'string') return null;
-  if (request.queryLength !== 0) return null;
-  const shape = route[2];
-  const path = request.path.replace(/^\/api(?=\/)/u, '');
-  const resource = shape.startsWith('/notices') ? 'notice' : 'note';
-  const item = shape.endsWith('/:id');
-  if (!item) return path === shape ? { resource, method: route[1], item } : null;
-  const prefix = shape.slice(0, -3);
-  const id = path.startsWith(prefix) ? path.slice(prefix.length) : '';
-  if (!ID_SEGMENT.test(id) || RESERVED_IDS.has(id.toLowerCase())) return null;
-  return { resource, method: route[1], item };
-}
-
-function zoneRule(request, zone) {
-  if (!zone) return { deny: 'unknown_route_deny' };
-  if (zone.resource === 'notice') {
-    return zone.method === 'GET' ? { allow: 'class_notices_read_zone' } : { deny: 'notice_write_instructor_only' };
+function zoneRule(request) {
+  if (WRITE_METHODS.has(request.method)) return { deny: 'write_not_allowed', reasonCode: 'write_not_allowed' };
+  const pattern = typeof request.route === 'string' && Object.hasOwn(READ_ZONES, request.route) ? READ_ZONES[request.route] : null;
+  const match = pattern && request.service === 'notes' && request.route.startsWith(`${request.method} `)
+    && typeof request.path === 'string' ? pattern.exec(request.path) : null;
+  if (!match) return { deny: 'route_not_allowed', reasonCode: 'route_not_allowed' };
+  if ((match[1] && FUNCTION_NAMES.has(match[1].toLowerCase())) || request.queryLength !== 0) {
+    return { deny: 'resource_zones', reasonCode: 'route_not_allowed' };
   }
-  if (!NOTE_SHAPES[zone.method]?.includes(zone.item)) return { deny: 'unknown_route_deny' };
-  return isVaultOwner(request) ? { allow: 'own_notes_zone' } : { deny: 'own_notes_zone' };
+  return { allow: 'resource_zones' };
 }
 
 function stepUpDone(request) {
@@ -105,8 +89,8 @@ export async function decide(request) {
     return answer(request, 'deny', 'device_not_registered', ['device_registered']);
   }
 
-  const zone = zoneRule(request, readZone(request));
-  if (zone.deny) return answer(request, 'deny', 'zone_not_allowed', [zone.deny]);
+  const zone = zoneRule(request);
+  if (zone.deny) return answer(request, 'deny', zone.reasonCode, [zone.deny]);
 
   if (isCompositeAnomaly(request)) {
     if (!stepUpDone(request)) return answer(request, 'step_up', 'step_up_required', ['step_up_required']);

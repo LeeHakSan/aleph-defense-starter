@@ -13,102 +13,80 @@ const ask = async (method, route, path, patch = {}) => {
   return out;
 };
 
-test('A(자료실 주인)는 자기 기기로 자기 메모를 어떤 메모 id 로든 읽고 고친다', async () => {
-  for (const [method, route, path, patch] of [['GET', '/notes', '/notes'], ['POST', '/notes', '/notes'],
-    ['GET', '/notes/:id', '/notes/demo'], ['GET', '/notes/:id', `/notes/${ID}`], ['PUT', '/notes/:id', `/notes/${ID}`],
-    ['DELETE', '/notes/:id', '/notes/demo'], ['GET', '/api/notes/:id', '/api/notes/demo']]) {
-    const out = await ask(method, route, path, patch);
-    assert.equal(out.decision, 'allow', `${method} ${path}`);
-    assert.deepEqual(out.ruleIds, ['device_registered', 'own_notes_zone']);
-  }
-});
-
-test('B 가 A 의 메모를 읽기·고치기·지우기, 목록·추가하면 거부', async () => {
-  for (const [method, route, path] of [['GET', '/notes/:id', '/notes/demo'], ['GET', '/notes/:id', `/notes/${ID}`],
-    ['PUT', '/notes/:id', '/notes/demo'], ['DELETE', '/notes/:id', '/notes/demo'], ['GET', '/notes', '/notes'],
-    ['POST', '/notes', '/notes'], ['GET', '/api/notes/:id', '/api/notes/demo']]) {
-    const out = await ask(method, route, path, OTHER);
-    assert.equal(out.decision, 'deny', `${method} ${path}`);
-    assert.equal(out.reasonCode, 'zone_not_allowed');
-    assert.deepEqual(out.ruleIds, ['own_notes_zone']);
-  }
-  for (const subjectId of [undefined, '', 'LEARNER_FIXTURE', 'learner_fixture ', 42]) {
-    assert.equal((await ask('GET', '/notes/:id', '/notes/demo', { subjectId })).decision, 'deny', String(subjectId));
-  }
-});
-
-test('A 의 계정이라도 다른 기기·다른 반·다른 프로젝트에서 오면 자기 메모 구역이 아니다', async () => {
-  for (const patch of [{ deviceId: 'c'.repeat(16) }, { deviceId: undefined }, { classId: 'class_other' }, { projectId: 'project_other' }]) {
-    const out = await ask('GET', '/notes/:id', '/notes/demo', patch);
-    assert.equal(out.decision, 'deny', JSON.stringify(patch));
-    assert.deepEqual(out.ruleIds, ['own_notes_zone']);
-  }
-});
-
-test('강사 공지: 읽기는 허용, 일반 학생의 수정·추가·삭제는 거부', async () => {
-  for (const [route, path, patch] of [['/notices', '/notices'], ['/notices/:id', `/notices/${ID}`], ['/notices/:id', '/notices/demo', OTHER]]) {
+test('정확한 읽기 구역만 허용: 자기 목록(/api/my/notes)과 메모 한 건 읽기', async () => {
+  for (const [route, path, patch] of [['/api/my/notes', '/api/my/notes'], ['/api/notes/:id', `/api/notes/${ID}`],
+    ['/notes/:id', '/notes/demo'], ['/api/notes/:id', `/api/notes/${ID}`, OTHER]]) {
     const out = await ask('GET', route, path, patch);
-    assert.equal(out.decision, 'allow');
-    assert.deepEqual(out.ruleIds, ['device_registered', 'class_notices_read_zone']);
-  }
-  for (const [method, route, path, patch] of [['PUT', '/notices/:id', `/notices/${ID}`], ['PUT', '/notices/:id', '/notices/demo', OTHER],
-    ['POST', '/notices', '/notices'], ['DELETE', '/notices/:id', `/notices/${ID}`], ['PUT', '/api/notices/:id', `/api/notices/${ID}`]]) {
-    const out = await ask(method, route, path, patch);
-    assert.equal(out.decision, 'deny', `${method} ${path}`);
-    assert.equal(out.reasonCode, 'zone_not_allowed');
-    assert.deepEqual(out.ruleIds, ['notice_write_instructor_only']);
+    assert.equal(out.decision, 'allow', path);
+    assert.equal(out.reasonCode, 'approved');
+    assert.deepEqual(out.ruleIds, ['device_registered', 'resource_zones']);
   }
 });
 
-test('알 수 없는 경로·모양 불일치·기능 이름은 거부', async () => {
-  const cases = [
-    ['GET', '/notes/:id', '/notes/export'],
-    ['GET', '/notes/:id', '/notes/export/all'],
-    ['GET', '/notes/:id', '/notes/..'],
-    ['GET', '/notes/:id', '/notes/%2e%2e'],
-    ['GET', '/notes/:id', '/notes/'],
-    ['GET', '/notes/:id', '/notices/abc'],
-    ['GET', '/notes', '/notes/abc'],
-    ['POST', '/notes/:id', `/notes/${ID}`],
-    ['PUT', '/notes', '/notes'],
-    ['DELETE', '/notes', '/notes'],
-    ['GET', '/users', '/users'],
-    ['GET', '/admin/notes', '/admin/notes'],
-    ['GET', '/notes/:id/export', `/notes/${ID}/export`],
-  ];
-  for (const [method, route, path] of cases) {
+test('모든 쓰기(메모 추가·수정·삭제, 공지 수정)는 소유·강사 증거가 없어 거부', async () => {
+  for (const [method, route, path] of [['POST', '/api/notes', '/api/notes'], ['PUT', '/api/notes/:id', `/api/notes/${ID}`],
+    ['PATCH', '/api/notes/:id', `/api/notes/${ID}`], ['DELETE', '/api/notes/:id', `/api/notes/${ID}`],
+    ['PUT', '/api/notices/:id', `/api/notices/${ID}`], ['PUT', '/notes/:id', '/notes/demo'], ['POST', '/api/my/notes', '/api/my/notes']]) {
     const out = await ask(method, route, path);
     assert.equal(out.decision, 'deny', `${method} ${path}`);
-    assert.equal(out.reasonCode, 'zone_not_allowed');
-    assert.deepEqual(out.ruleIds, ['unknown_route_deny']);
+    assert.equal(out.reasonCode, 'write_not_allowed');
+    assert.deepEqual(out.ruleIds, ['write_not_allowed']);
   }
 });
 
-test('method 와 route 가 서로 다르거나 형식이 틀리면 거부', async () => {
+test('모호한 목록·다른 구역·알 수 없는 경로는 거부', async () => {
+  for (const [route, path] of [['/api/notes', '/api/notes'], ['/notes', '/notes'], ['/api/notices', '/api/notices'],
+    ['/api/notices/:id', `/api/notices/${ID}`], ['/notices/:id', '/notices/demo'], ['/api/users', '/api/users'],
+    ['/api/admin/notes', '/api/admin/notes'], ['/api/notes/:id/export', `/api/notes/${ID}/export`]]) {
+    const out = await ask('GET', route, path);
+    assert.equal(out.decision, 'deny', path);
+    assert.equal(out.reasonCode, 'route_not_allowed');
+    assert.deepEqual(out.ruleIds, ['route_not_allowed']);
+  }
+});
+
+test('route 와 path·method·service 가 맞지 않으면 거부', async () => {
+  const cases = [
+    ['GET', '/api/notes/:id', '/api/notes/'],
+    ['GET', '/api/notes/:id', `/api/notes/${ID}/x`],
+    ['GET', '/api/notes/:id', '/api/notes/..'],
+    ['GET', '/api/notes/:id', '/api/notes/%2e%2e'],
+    ['GET', '/api/notes/:id', `/api/notices/${ID}`],
+    ['GET', '/api/my/notes', '/api/my/notes/'],
+    ['GET', '/api/my/notes', '/api/notes'],
+  ];
+  for (const [method, route, path] of cases) {
+    assert.equal((await ask(method, route, path)).decision, 'deny', path);
+  }
   const { normal } = fixtureRequests();
   for (const patch of [{ method: 'PUT' }, { method: 'get' }, { method: undefined }, { route: undefined }, { route: 'GET notes' },
-    { path: undefined }, { path: 42 }, { route: 'GET /notes/:id?export=1' }]) {
-    const out = await decide({ ...normal, requestId: randomUUID(), ...patch });
-    assert.equal(out.decision, 'deny', JSON.stringify(patch));
+    { path: undefined }, { path: 42 }, { route: 'GET /notes/:id?export=1' }, { service: 'notices' }, { service: undefined }]) {
+    assert.equal((await decide({ ...normal, requestId: randomUUID(), ...patch })).decision, 'deny', JSON.stringify(patch));
   }
 });
 
-test('쿼리가 붙으면 정확한 경로가 아니므로 자기 메모라도 거부', async () => {
+test('자료 ID 자리의 기능 이름과 쿼리 기능 선택은 거부', async () => {
+  for (const name of ['export', 'EXPORT', 'all', 'admin', 'backup', 'restore', 'upload']) {
+    const out = await ask('GET', '/api/notes/:id', `/api/notes/${name}`);
+    assert.equal(out.decision, 'deny', name);
+    assert.equal(out.reasonCode, 'route_not_allowed');
+    assert.deepEqual(out.ruleIds, ['resource_zones']);
+  }
   for (const patch of [{ queryLength: 12 }, { queryLength: 1 }, { queryLength: undefined }]) {
-    const out = await ask('GET', '/notes/:id', '/notes/demo', patch);
-    assert.equal(out.decision, 'deny', JSON.stringify(patch));
-    assert.deepEqual(out.ruleIds, ['unknown_route_deny']);
+    assert.equal((await ask('GET', '/api/my/notes', '/api/my/notes', patch)).decision, 'deny', JSON.stringify(patch));
   }
 });
 
-test('이전 규칙 유지: 미등록 기기는 구역보다 먼저 거부, 복합 이상 사건은 추가 확인', async () => {
+test('이전 규칙 유지: 미등록 기기는 먼저 거부, 복합 이상 사건은 추가 확인', async () => {
   const { normal, suspicious } = fixtureRequests();
-  const off = await decide({ ...normal, requestId: randomUUID(), deviceRegistered: false, route: 'GET /users', path: '/users' });
+  const off = await decide({ ...normal, requestId: randomUUID(), deviceRegistered: false });
   assert.equal(off.reasonCode, 'device_not_registered');
+  const offWrite = await decide({ ...normal, requestId: randomUUID(), deviceRegistered: false, method: 'PUT', route: 'PUT /notes/:id' });
+  assert.equal(offWrite.reasonCode, 'device_not_registered');
   assert.equal((await decide(suspicious)).decision, 'step_up');
   const checked = await decide({ ...suspicious, requestId: randomUUID(), stepUp: { verified: true, authAgeSeconds: 60 } });
   assert.equal(checked.decision, 'allow');
-  assert.deepEqual(checked.ruleIds, ['device_registered', 'own_notes_zone', 'step_up_required']);
-  const otherSuspicious = await decide({ ...suspicious, requestId: randomUUID(), ...OTHER });
-  assert.equal(otherSuspicious.decision, 'deny');
+  assert.deepEqual(checked.ruleIds, ['device_registered', 'resource_zones', 'step_up_required']);
+  const suspiciousWrite = await decide({ ...suspicious, requestId: randomUUID(), method: 'PUT', route: 'PUT /notes/:id' });
+  assert.equal(suspiciousWrite.decision, 'deny');
 });
